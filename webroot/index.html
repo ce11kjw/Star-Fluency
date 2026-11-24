@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e14">
+<title>Star-Fluency</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0a0e14; --card:#141a24; --card2:#1b2330; --line:#232c3a;
+  --txt:#e8edf4; --dim:#7d8899; --lime:#c6f24e; --cyan:#4ee0f2;
+  --red:#f25b5b; --amber:#f2b84e;
+}
+body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;
+     padding:0 0 24px;min-height:100vh}
+.hdr{padding:18px 16px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#121a26,var(--bg))}
+.hdr h1{font-size:19px;font-weight:700;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+.hdr h1 span{color:var(--lime)}
+.hdr p{font-size:11.5px;color:var(--dim);margin-top:3px}
+.tabs{display:flex;gap:6px;padding:12px 16px 0;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;padding:8px 15px;border-radius:9px;background:var(--card);border:1px solid var(--line);
+     font-size:13px;color:var(--dim);cursor:pointer;transition:.15s;white-space:nowrap}
+.tab.on{background:var(--lime);color:#0a0e14;border-color:var(--lime);font-weight:600}
+.pane{display:none;padding:14px 16px 0}
+.pane.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:11px}
+.card h3{font-size:13.5px;font-weight:600;margin-bottom:11px;display:flex;align-items:center;justify-content:space-between}
+.card h3 em{font-style:normal;font-size:11px;color:var(--dim);font-weight:400}
+.seg{display:flex;gap:7px;margin-bottom:4px}
+.seg button{flex:1;padding:12px 6px;border-radius:10px;border:1px solid var(--line);background:var(--card2);
+            color:var(--dim);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
+.seg button.on{background:var(--lime);border-color:var(--lime);color:#0a0e14;font-weight:700}
+.seg button:active{transform:scale(.97)}
+.row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.row:last-child{border-bottom:0}
+.row .k{color:var(--dim)}
+.row .v{color:var(--txt);font-family:ui-monospace,monospace;font-size:12.5px}
+.row .v.diff{color:var(--lime)}
+.row .v.same{color:var(--dim)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.stat{background:var(--card2);border-radius:10px;padding:11px 12px}
+.stat .lbl{font-size:11px;color:var(--dim);margin-bottom:3px}
+.stat .num{font-size:19px;font-weight:700;font-family:ui-monospace,monospace;letter-spacing:-.5px}
+.stat .num small{font-size:11px;font-weight:400;color:var(--dim);margin-left:2px}
+.stat .sub{font-size:10.5px;color:var(--dim);margin-top:2px}
+.bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:7px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--lime));border-radius:3px;transition:width .4s}
+.sw{position:relative;width:46px;height:27px;flex:0 0 auto}
+.sw input{opacity:0;width:0;height:0;position:absolute}
+.sw i{position:absolute;inset:0;background:var(--line);border-radius:15px;cursor:pointer;transition:.2s}
+.sw i:before{content:"";position:absolute;width:21px;height:21px;left:3px;top:3px;background:#8a94a6;border-radius:50%;transition:.2s}
+.sw input:checked+i{background:var(--lime)}
+.sw input:checked+i:before{transform:translateX(19px);background:#0a0e14}
+.btn{padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--txt);
+     font-size:13px;cursor:pointer;font-family:inherit;width:100%;transition:.15s}
+.btn:active{transform:scale(.98)}
+.btn.pri{background:var(--lime);color:#0a0e14;border-color:var(--lime);font-weight:600}
+.btn.warn{color:var(--amber);border-color:#3a3020}
+.btn.danger{color:var(--red);border-color:#3a2020}
+.btns{display:flex;gap:8px}
+.log{background:#070a0e;border:1px solid var(--line);border-radius:9px;padding:10px;
+     font:11px/1.6 ui-monospace,monospace;color:#8fa3b8;max-height:340px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
+.hint{font-size:11.5px;color:var(--dim);line-height:1.6;margin-top:9px}
+.tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:5px;background:#1f2836;color:var(--dim);margin-left:6px}
+.tag.ok{background:#1a2a1a;color:#7dd87d}
+.tag.no{background:#2a1a1a;color:#d87d7d}
+#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(70px);background:var(--lime);
+       color:#0a0e14;padding:10px 20px;border-radius:22px;font-size:13px;font-weight:600;opacity:0;
+       transition:.25s;pointer-events:none;z-index:99;max-width:86%;text-align:center}
+#toast.on{transform:translateX(-50%) translateY(0);opacity:1}
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--lime);
+      border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>Star <span>Fluency</span></h1>
+  <p>小米11 Ultra 流畅优化 · 动图修复</p>
+</div>
+
+<div class="tabs">
+  <div class="tab on" data-p="tune">调优</div>
+  <div class="tab" data-p="net">网络</div>
+  <div class="tab" data-p="motion">动图</div>
+  <div class="tab" data-p="trim">精简</div>
+  <div class="tab" data-p="stat">状态</div>
+  <div class="tab" data-p="diag">诊断</div>
+</div>
+
+<!-- ========== 调优 ========== -->
+<div class="pane on" id="p-tune">
+  <div class="card">
+    <h3>性能档位 <em id="curProfile">读取中</em></h3>
+    <div class="seg">
+      <button data-prof="balance" id="btnBalance">平衡</button>
+      <button data-prof="smooth" id="btnSmooth">流畅</button>
+    </div>
+    <div class="hint">平衡：省电为主，日常够用<br>流畅：内存与 IO 拉高，滑动手感优先</div>
+  </div>
+
+  <div class="card">
+    <h3>参数对照 <em>当前 / 原厂</em></h3>
+    <div id="paramList"></div>
+  </div>
+
+  <div class="card">
+    <h3>恢复</h3>
+    <button class="btn warn" onclick="applyProfile('stock')">恢复全部原厂设置</button>
+    <div class="hint">点了之后所有参数回到出厂值，档位不再是平衡/流畅</div>
+  </div>
+
+  <div class="card">
+    <h3>场景自动切换 <em id="sceneTag"></em></h3>
+    <div class="row">
+      <span class="k">充电时自动切到流畅档</span>
+      <label class="sw"><input type="checkbox" id="swScene"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">夜间 23:00-07:00 切回平衡档</span>
+      <span class="v">同一开关</span>
+    </div>
+    <div class="hint">拔电后回到你手动选的档位。温度降级优先于场景切换，两者不会互相打架</div>
+  </div>
+
+  <div class="card">
+    <h3>温度感知降级 <em id="tempTag"></em></h3>
+    <div class="row">
+      <span class="k">电池过热自动降为平衡档</span>
+      <label class="sw"><input type="checkbox" id="swTemp"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">当前电池温度</span>
+      <span class="v" id="curTemp">-</span>
+    </div>
+    <div class="row">
+      <span class="k">降级 / 恢复阈值</span>
+      <span class="v" id="tempTh">42°C / 38°C</span>
+    </div>
+    <div class="hint">温度回落自动解除。这是主动策略，不改动系统 thermal 与 perf HAL</div>
+  </div>
+</div>
+
+<!-- ========== 动图 ========== -->
+<div class="pane" id="p-motion">
+  <div class="card">
+    <h3>自动修复 <em id="motionAutoTag"></em></h3>
+    <div class="row">
+      <span class="k">开机自动监视</span>
+      <label class="sw"><input type="checkbox" id="swAuto"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">待处理微视频</span>
+      <span class="v" id="mPend">-</span>
+    </div>
+    <div class="row">
+      <span class="k">已修复累计</span>
+      <span class="v" id="mDone">-</span>
+    </div>
+    <div class="hint">开启后每 3 分钟检查一次相机残留的微视频，自动合成进 JPG</div>
+  </div>
+
+  <div class="card">
+    <h3>手动操作</h3>
+    <div class="btns">
+      <button class="btn pri" onclick="motionAct('run')">立即修复一次</button>
+      <button class="btn" onclick="showMotionLog()">查看日志</button>
+    </div>
+    <div class="hint">「立即修复」会扫描 pending 目录并合成，可重复点</div>
+  </div>
+
+  <div class="card" id="mLogCard" style="display:none">
+    <h3>修复日志</h3>
+    <div class="log" id="mLog">加载中…</div>
+  </div>
+</div>
+
+<!-- ========== 精简 ========== -->
+<div class="pane" id="p-trim">
+  <div class="card">
+    <h3>后台限制</h3>
+    <div class="row">
+      <span class="k">负一屏<em class="tag">省约 170MB</em></span>
+      <label class="sw"><input type="checkbox" id="swPa"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">谷歌服务后台<em class="tag">Play 仍可用</em></span>
+      <label class="sw"><input type="checkbox" id="swGms"><i></i></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Play 商店 <em id="playTag"></em></h3>
+    <div class="row">
+      <span class="k">关自动更新 + 后台压制<em class="tag">省约 500MB</em></span>
+      <label class="sw"><input type="checkbox" id="swPlay"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">已压制次数</span>
+      <span class="v" id="playKills">-</span>
+    </div>
+    <div class="row">
+      <span class="k">当前进程</span>
+      <span class="v" id="playState">-</span>
+    </div>
+    <div class="hint">关闭后不会自动更新应用，需要更新时手动打开 Play 商店点更新。你正在用 Play 时不会被干扰</div>
+  </div>
+
+  <div class="card">
+    <h3>系统应用后台</h3>
+    <div class="row">
+      <span class="k">小米应用商店<em class="tag">省约 140MB</em></span>
+      <label class="sw"><input type="checkbox" id="swMarket"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">内容中心<em class="tag">省约 160MB</em></span>
+      <label class="sw"><input type="checkbox" id="swContent"><i></i></label>
+    </div>
+    <div class="hint">商店限制后不会后台自动下载应用更新，需要时手动打开更新。内容中心是负一屏资讯推送</div>
+  </div>
+
+  <div class="card">
+    <h3>谷歌服务精简 <em id="gmsTag"></em></h3>
+    <div class="row">
+      <span class="k">关非核心组件<em class="tag">省约 100MB</em></span>
+      <label class="sw"><input type="checkbox" id="swGmsSlim"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">运行中服务</span>
+      <span class="v" id="gmsSvc">-</span>
+    </div>
+    <div class="hint">只关闭附近共享、晕车辅助、个人安全、魔法网络、统计上报等可选功能。<strong>推送、定位、账号登录、Play 商店全部保留</strong></div>
+  </div>
+
+  <div class="card">
+    <h3>后台进程管理</h3>
+    <div class="row">
+      <span class="k">缓存进程上限 64<em class="tag">减少内存压力</em></span>
+      <label class="sw"><input type="checkbox" id="swCached"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">当前上限</span>
+      <span class="v" id="cachedVal">-</span>
+    </div>
+    <div class="hint">限制后台缓存的空进程数量，降低内存占用。App 切回时会重新加载</div>
+  </div>
+
+  <div class="card">
+    <h3>微信小程序容器 <em id="abTag"></em></h3>
+    <div class="row">
+      <span class="k">闲置 30 分钟后清理<em class="tag">省约 400MB</em></span>
+      <label class="sw"><input type="checkbox" id="swAb"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">当前占用</span>
+      <span class="v" id="abState">-</span>
+    </div>
+    <div class="hint">只结束小程序运行时进程，不影响微信本体和聊天记录。再用小程序会重新加载</div>
+  </div>
+
+  <div class="card">
+    <h3>动画速度</h3>
+    <div class="row">
+      <span class="k">动画缩放 0.5 倍</span>
+      <label class="sw"><input type="checkbox" id="swAnim"><i></i></label>
+    </div>
+    <div class="hint">把系统动画时长减半，感觉更快。不影响任何功能</div>
+  </div>
+
+  <div class="card">
+    <h3>相机</h3>
+    <div class="row">
+      <span class="k">闲置自动清理<em class="tag">省约 220MB</em></span>
+      <label class="sw"><input type="checkbox" id="swCam"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">当前进程</span>
+      <span class="v" id="camState">-</span>
+    </div>
+    <div class="hint">前台不是相机且超过 5 分钟后自动结束。AI 引擎（aicr）未做任何改动</div>
+  </div>
+
+  <div class="card">
+    <h3>后台白名单 <em id="wlTag"></em></h3>
+    <div class="btns" style="margin-bottom:4px">
+      <input id="wlInput" placeholder="com.example.app" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
+      <button class="btn" style="width:auto;padding:11px 16px" onclick="wlAdd()">加入</button>
+    </div>
+    <div id="wlList"><div class="hint">加载中…</div></div>
+    <div class="hint">白名单里的应用不受上面的后台限制。某个应用收不到通知时，把它的包名加进来就恢复</div>
+  </div>
+
+  <div class="card">
+    <h3>开机自启管理 <em id="bootTag"></em></h3>
+    <div class="btns" style="margin-bottom:4px">
+      <input id="bootInput" placeholder="com.example.app" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
+      <button class="btn warn" style="width:auto;padding:11px 16px" onclick="bootDisable()">禁自启</button>
+    </div>
+    <div id="bootList"><div class="hint">加载中…</div></div>
+    <div class="hint">只禁用「开机自动启动」的接收器，应用照常能打开、推送不受影响，随时可恢复</div>
+  </div>
+</div>
+
+<!-- ========== 状态 ========== -->
+<div class="pane" id="p-stat">
+  <div class="card">
+    <h3>内存 <em id="updTime"></em></h3>
+    <div class="grid">
+      <div class="stat">
+        <div class="lbl">可用内存</div>
+        <div class="num" id="sAvail">-<small>MB</small></div>
+        <div class="bar"><i id="bAvail" style="width:0%"></i></div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Swap 已用</div>
+        <div class="num" id="sSwap">-<small>MB</small></div>
+        <div class="sub" id="sSwapSub">/ -</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">Zram 压缩率</div>
+        <div class="num" id="sRatio">-<small>x</small></div>
+        <div class="sub" id="sAlgo">-</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">负载</div>
+        <div class="num" id="sLoad">-</div>
+        <div class="sub">1/5/15 分钟</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>CPU 实时频率</h3>
+    <div class="row"><span class="k">小核 ×4</span><span class="v" id="c0">-</span></div>
+    <div class="row"><span class="k">中核 ×3</span><span class="v" id="c4">-</span></div>
+    <div class="row"><span class="k">大核 ×1</span><span class="v" id="c7">-</span></div>
+  </div>
+
+  <div class="card">
+    <h3>运行日志</h3>
+    <div class="btns" style="margin-bottom:9px">
+      <button class="btn" onclick="loadLog()">刷新日志</button>
+    </div>
+    <div class="log" id="sysLog">点「刷新日志」加载</div>
+  </div>
+</div>
+
+<!-- ========== 网络 ========== -->
+<div class="pane" id="p-net">
+  <div class="card">
+    <h3>当前网络 <em id="netTag"></em></h3>
+    <div class="row"><span class="k">连接类型</span><span class="v" id="netType">-</span></div>
+    <div class="row"><span class="k">代理 / VPN 接口</span><span class="v" id="netVpn">-</span></div>
+    <div class="row"><span class="k">TCP Fast Open</span><span class="v" id="netTfo">-</span></div>
+    <div class="hint">开了代理时 TCP 走 tun0，参数会一并作用在代理接口上</div>
+  </div>
+
+  <div class="card">
+    <h3>已调参数</h3>
+    <div class="row"><span class="k">空闲后重置拥塞窗口</span><span class="v">关闭</span></div>
+    <div class="row"><span class="k">MTU 自动探测</span><span class="v">开启</span></div>
+    <div class="row"><span class="k">未发送数据下限</span><span class="v">128 KB</span></div>
+    <div class="row"><span class="k">连接回收超时</span><span class="v">30 秒</span></div>
+    <div class="row"><span class="k">新连接初始窗口</span><span class="v">20 段</span></div>
+    <div class="row"><span class="k">接收 / 发送缓冲</span><span class="v">按接口区分</span></div>
+    <div class="hint">Wi-Fi 用大缓冲，蜂窝用保守值（弱网下大缓冲反而增加延迟）</div>
+  </div>
+
+  <div class="card">
+    <h3>操作</h3>
+    <button class="btn pri" onclick="netApply()">按当前档位重新应用</button>
+    <div style="height:8px"></div>
+    <button class="btn warn" onclick="netRevert()">恢复网络原厂值</button>
+    <div class="hint">本机内核只带 cubic / reno，没有 BBR，所以只调参数不换算法。接口区分思路参考 TCP_Optimiser_Module</div>
+  </div>
+</div>
+
+<!-- ========== 诊断 ========== -->
+<div class="pane" id="p-diag">
+  <div class="card">
+    <h3>为什么卡 <em id="diagTime"></em></h3>
+    <button class="btn pri" onclick="diagLoad()">开始诊断</button>
+    <div class="grid" style="margin-top:11px">
+      <div class="stat"><div class="lbl">负载</div><div class="num" id="dLoad">-</div><div class="sub" id="dLoadPct">-</div></div>
+      <div class="stat"><div class="lbl">可用内存</div><div class="num" id="dMem">-<small>MB</small></div><div class="sub" id="dMemSub">-</div></div>
+      <div class="stat"><div class="lbl">Swap 已用</div><div class="num" id="dSwap">-<small>MB</small></div><div class="sub" id="dSwapPct">-</div></div>
+      <div class="stat"><div class="lbl">Zram 压缩</div><div class="num" id="dRatio">-<small>x</small></div><div class="sub" id="dAlgo">-</div></div>
+      <div class="stat"><div class="lbl">内存压力 PSI</div><div class="num" id="dPsi">-</div><div class="sub">some 10 秒均值</div></div>
+      <div class="stat"><div class="lbl">电池温度</div><div class="num" id="dTemp">-<small>°C</small></div><div class="sub" id="dCached">-</div></div>
+    </div>
+    <div class="hint" id="dJudge">点上面按钮开始诊断</div>
+  </div>
+
+  <div class="card">
+    <h3>占用最高 <em>CPU</em></h3>
+    <div id="dTopCpu"><div class="hint">-</div></div>
+  </div>
+
+  <div class="card">
+    <h3>占用最高 <em>内存</em></h3>
+    <div id="dTopMem"><div class="hint">-</div></div>
+  </div>
+
+  <div class="card">
+    <h3>稳定性</h3>
+    <div class="row"><span class="k">ANR 次数（本次开机）</span><span class="v" id="dAnr">-</span></div>
+    <div class="row"><span class="k">OOM 杀进程</span><span class="v" id="dOom">-</span></div>
+    <div class="row"><span class="k">持有唤醒锁的应用</span><span class="v" id="dWl">-</span></div>
+    <div class="row"><span class="k">缓存进程数</span><span class="v" id="dProc">-</span></div>
+    <div class="hint">ANR 多说明有应用主线程卡住；OOM 多说明内存不够，可以把缓存进程上限再调低</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ========== 桥接层：全管理器适配 + 浏览器 HTTP 降级 ==========
+   支持：KernelSU / APatch / KernelSU Next / SukiSU / FinaSU /
+         KsuWebUIStandalone / MMRL / WebUI X / AxManager / Magisk(HTTP降级)
+   已验证桥对象名：
+     KernelSU 系      → ksu
+     KsuWebUIStandalone→ ksuwebui   ← 关键，Magisk 用户靠它
+     AxManager        → ksu + Axeron
+     MMRL             → ksu（ksu.mmrl() 返回 true）
+     FinaSU           → ksu / kernelsu / KernelSU / KERNELSU
+============================================================ */
+var MODDIR = '/data/adb/modules/star_fluency';
+var _cbSeq = 0;
+var BRIDGE = null, BRIDGE_LABEL = "", BRIDGE_MODE = "none";
+
+function probe() {
+  var cands = [
+    ["ksu",        function () { return window.ksu; }],
+    ["ksuwebui",   function () { return window.ksuwebui; }],
+    ["KernelSU",   function () { return window.KernelSU; }],
+    ["KERNELSU",   function () { return window.KERNELSU; }],
+    ["kernelsu",   function () { return window.kernelsu; }],
+    ["Ksu",        function () { return window.Ksu; }],
+    ["KSU",        function () { return window.KSU; }],
+    ["APatch",     function () { return window.APatch; }],
+    ["Apatch",     function () { return window.Apatch; }],
+    ["magisk",     function () { return window.magisk; }],
+    ["Magisk",     function () { return window.Magisk; }],
+    ["mm",         function () { return window.mm; }],
+    ["Axeron",     function () { return window.Axeron; }],
+    ["axeron",     function () { return window.axeron; }],
+    ["exec",       function () { return (typeof window.exec === "function") ? window : null; }],
+    ["window.exec",function () { return (typeof exec === "function") ? { exec: exec } : null; }]
+  ];
+  for (var i = 0; i < cands.length; i++) {
+    var o = null;
+    try { o = cands[i][1](); } catch (e) { o = null; }
+    if (o && typeof o.exec === "function") {
+      BRIDGE_LABEL = cands[i][0];
+      return o;
+    }
+  }
+  return null;
+}
+BRIDGE = probe();
+
+/* 判断是否为同步式 exec（只传 cmd 返回字符串）——AxManager / KsuWebUI 有这重载 */
+var SYNC_ONLY = false;
+
+function runExec(cmd, opts) {
+  return new Promise(function (resolve) {
+    if (!BRIDGE) { resolve({ errno: 127, stdout: "", stderr: "NO_BRIDGE" }); return; }
+    var name = "__sfcb" + Date.now() + (_cbSeq++);
+    var settled = false;
+    function done(r) {
+      if (settled) return;
+      settled = true;
+      try { delete window[name]; } catch (e) { window[name] = null; }
+      resolve(r);
+    }
+    window[name] = function (errno, stdout, stderr) {
+      done({
+        errno: (typeof errno === "number") ? errno : 0,
+        stdout: (stdout == null) ? "" : String(stdout),
+        stderr: (stderr == null) ? "" : String(stderr)
+      });
+    };
+    try {
+      BRIDGE.exec(cmd, JSON.stringify(opts || {}), name);
+    } catch (e1) {
+      /* 尝试 Promise 式 */
+      try {
+        var r2 = BRIDGE.exec(cmd, opts || {});
+        if (r2 && typeof r2.then === "function") {
+          r2.then(function (x) {
+            done({
+              errno: (x && typeof x.errno === "number") ? x.errno : 0,
+              stdout: (x && x.stdout) ? String(x.stdout) : "",
+              stderr: (x && x.stderr) ? String(x.stderr) : ""
+            });
+          })["catch"](function (e2) {
+            done({ errno: 1, stdout: "", stderr: String(e2) });
+          });
+          return;
+        }
+        /* 最后尝试同步式（返回字符串） */
+        if (typeof r2 === "string") {
+          SYNC_ONLY = true;
+          done({ errno: 0, stdout: r2, stderr: "" });
+          return;
+        }
+      } catch (e2) {
+        /* 三参数失败，试两参数同步 */
+        try {
+          var r3 = BRIDGE.exec(cmd);
+          if (typeof r3 === "string") {
+            SYNC_ONLY = true;
+            done({ errno: 0, stdout: r3, stderr: "" });
+            return;
+          }
+        } catch (e3) {
+          done({ errno: 1, stdout: "", stderr: String(e3) });
+          return;
+        }
+        done({ errno: 1, stdout: "", stderr: String(e2) });
+        return;
+      }
+      done({ errno: 1, stdout: "", stderr: String(e1) });
+    }
+    setTimeout(function () { done({ errno: 124, stdout: "", stderr: "TIMEOUT" }); }, 90000);
+  });
+}
+
+/* 统一入口 */
+function sh(cmd, cb) {
+  if (BRIDGE) {
+    runExec(cmd, { cwd: "/", env: { PATH: "/data/adb/ksu/bin:/data/adb/magisk:/system/bin:/system/xbin" } })
+      .then(function (r) { cb(r.errno, r.stdout, r.stderr); });
+  } else {
+    /* 无桥（原生 Magisk / 纯浏览器）→ 走 HTTP */
+    fetch('/api/sh?cmd=' + encodeURIComponent(cmd))
+      .then(function (r) { return r.json(); })
+      .then(function (j) { cb(j.code || 0, j.out || '', j.err || ''); })
+      .catch(function (e) { cb(-1, '', String(e)); });
+  }
+}
+
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(t._tm);
+  t._tm = setTimeout(function(){ t.classList.remove('on'); }, 1900);
+}
+
+var STATE = {};
+
+/* ========== 状态加载 ========== */
+function loadStatus() {
+  sh('sh ' + MODDIR + '/scripts/status.sh', function(code, out) {
+    if (code !== 0 || !out.trim()) return;
+    try { STATE = JSON.parse(out); render(); } catch(e) { console.log('parse fail', e, out); }
+  });
+}
+
+function fmtFreq(khz) {
+  if (!khz) return '-';
+  return (khz / 1000).toFixed(0) + ' MHz';
+}
+function fmtMB(kb) {
+  if (!kb) return '0';
+  return Math.round(kb / 1024) + '';
+}
+
+function render() {
+  var s = STATE;
+
+  // ---- 档位 ----
+  var p = s.profile || 'balance';
+  document.getElementById('curProfile').textContent = p === 'smooth' ? '流畅' : (p === 'balance' ? '平衡' : '原厂');
+  document.getElementById('btnBalance').classList.toggle('on', p === 'balance');
+  document.getElementById('btnSmooth').classList.toggle('on', p === 'smooth');
+
+  // ---- 参数对照 ----
+  var rows = [
+    ['内存回收倾向', 'swappiness'],
+    ['缓存保留', 'vfs'],
+    ['脏页上限', 'dirty'],
+    ['后台写回', 'dirtybg'],
+    ['最小空闲内存', 'minfree'],
+    ['IO 调度', 'sched'],
+    ['预读大小', 'readahead'],
+    ['小核最低频', 'c0'],
+    ['中核最低频', 'c4'],
+    ['大核最低频', 'c7']
+  ];
+  var html = '';
+  rows.forEach(function(r) {
+    var cur = s.cur && s.cur[r[1]] || '-';
+    var sto = s.stock && s.stock[r[1]] || '-';
+    var cls = (cur == sto) ? 'same' : 'diff';
+    html += '<div class="row"><span class="k">' + r[0] + '</span>' +
+            '<span class="v ' + cls + '">' + cur + ' <span style="color:var(--dim)">/ ' + sto + '</span></span></div>';
+  });
+  document.getElementById('paramList').innerHTML = html;
+
+  // ---- 动图 ----
+  var m = s.motion || {};
+  document.getElementById('mPend').textContent = (m.pending || 0) + ' 个';
+  document.getElementById('mDone').textContent = (m.done || 0) + ' 个';
+  document.getElementById('swAuto').checked = m.auto == 1;
+  document.getElementById('motionAutoTag').innerHTML = m.auto == 1
+    ? '<span class="tag ok">自动开启</span>' : '<span class="tag no">手动</span>';
+
+  // ---- 精简 ----
+  var t = s.trim || {};
+  var pl = s.play || {};
+  var ab = s.appbrand || {};
+  var gp = s.gpu || {};
+  document.getElementById('swPa').checked = (t.pa === 'ignore');
+  document.getElementById('swGms').checked = (t.gms === 'ignore');
+  document.getElementById('swPlay').checked = (t.play === 'ignore');
+  document.getElementById('swCam').checked = (s.cam && s.cam.idle_kill == 1);
+  document.getElementById('swAnim').checked = (parseFloat(t.anim) < 1);
+  document.getElementById('swAb').checked = (ab.idle_on == 1);
+  var gm = s.gms || {};
+  document.getElementById('swMarket').checked = (t.market === 'ignore');
+  document.getElementById('swContent').checked = (t.content === 'ignore');
+  document.getElementById('swGmsSlim').checked = (gm.slim == 1);
+  document.getElementById('swCached').checked = (t.cached > 0);
+  document.getElementById('gmsSvc').textContent = (gm.services || 0) + ' 个';
+  document.getElementById('gmsTag').innerHTML = (gm.slim == 1)
+    ? '<span class="tag ok">已精简</span>' : '<span class="tag no">未精简</span>';
+  document.getElementById('cachedVal').textContent = (t.cached > 0) ? t.cached + ' 个' : '默认';
+
+  document.getElementById('playKills').textContent = (pl.kills || 0) + ' 次';
+  document.getElementById('playState').textContent = pl.running ? '运行中 (pid ' + pl.running + ')' : '已压制';
+  document.getElementById('playTag').innerHTML = (t.play === 'ignore')
+    ? '<span class="tag ok">已开启</span>' : '<span class="tag no">关闭</span>';
+  document.getElementById('abState').textContent = ab.running
+    ? (Math.round((ab.rss || 0) / 1024) + ' MB') : '未运行';
+  document.getElementById('abTag').innerHTML = (ab.idle_on == 1)
+    ? '<span class="tag ok">清理已开</span>' : '<span class="tag no">关闭</span>';
+  var cam = s.cam || {};
+  document.getElementById('camState').textContent = cam.running ? '运行中 (pid ' + cam.running + ')' : '未运行';
+
+  // ---- 状态页 ----
+  var mem = s.mem || {}, sw = s.swap || {}, z = s.zram || {};
+  document.getElementById('sAvail').innerHTML = fmtMB(mem.avail) + '<small>MB</small>';
+  var pct = mem.total ? Math.round(mem.avail / mem.total * 100) : 0;
+  document.getElementById('bAvail').style.width = pct + '%';
+  document.getElementById('sSwap').innerHTML = fmtMB(sw.used) + '<small>MB</small>';
+  document.getElementById('sSwapSub').textContent = '/ ' + fmtMB(sw.total) + ' MB';
+  document.getElementById('sRatio').innerHTML = (z.ratio || 0) + '<small>x</small>';
+  document.getElementById('sAlgo').textContent = (z.algo || '-') + ' 压缩';
+  document.getElementById('sLoad').textContent = (s.load || '-').split(' ')[0] || '-';
+  var cpu = s.cpu || {};
+  document.getElementById('c0').textContent = fmtFreq(cpu.f0);
+  document.getElementById('c4').textContent = fmtFreq(cpu.f4);
+  document.getElementById('c7').textContent = fmtFreq(cpu.f7);
+
+  var d = new Date();
+  document.getElementById('updTime').textContent = d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+  renderExtra();
+}
+
+/* ========== 操作 ========== */
+function applyProfile(p) {
+  toast('应用中…');
+  sh('sh ' + MODDIR + '/scripts/apply.sh ' + p, function(code, out, err) {
+    toast(code === 0 ? '已应用' : '失败');
+    setTimeout(loadStatus, 800);
+  });
+}
+
+function motionAct(act) {
+  toast('执行中…');
+  sh('sh ' + MODDIR + '/scripts/motion.sh ' + act, function(code, out) {
+    toast(out.trim().slice(0, 40) || (code === 0 ? '完成' : '失败'));
+    setTimeout(loadStatus, 800);
+  });
+}
+
+function showMotionLog() {
+  var c = document.getElementById('mLogCard');
+  c.style.display = 'block';
+  document.getElementById('mLog').textContent = '加载中…';
+  sh('sh ' + MODDIR + '/scripts/motion.sh log 60', function(code, out) {
+    document.getElementById('mLog').textContent = out || '(空)';
+  });
+}
+
+function loadLog() {
+  document.getElementById('sysLog').textContent = '加载中…';
+  sh('tail -n 60 /data/adb/star-fluency/fluency.log', function(code, out) {
+    document.getElementById('sysLog').textContent = out || '(空)';
+  });
+}
+
+/* ========== 扩展：场景 / 温度 / 网络 / 白名单 / 自启 / 诊断 ========== */
+function tagHtml(on, okTxt, noTxt) {
+  return on ? ('<span class="tag ok">' + okTxt + '</span>') : ('<span class="tag no">' + noTxt + '</span>');
+}
+
+function renderExtra() {
+  var s = STATE || {};
+
+  var a = s.auto || {};
+  var swS = document.getElementById('swScene');
+  if (swS) {
+    swS.checked = (a.scene == 1);
+    document.getElementById('sceneTag').innerHTML = tagHtml(a.scene == 1, '已开启', '关闭');
+  }
+  var swT = document.getElementById('swTemp');
+  if (swT) {
+    swT.checked = (a.temp == 1);
+    document.getElementById('tempTag').innerHTML = (a.warn == 1)
+      ? '<span class="tag no">过热降级中</span>'
+      : tagHtml(a.temp == 1, '监控中', '关闭');
+    document.getElementById('curTemp').textContent = (a.cur_temp || 0) + ' °C';
+    document.getElementById('tempTh').textContent = (a.threshold || 42) + '°C / 38°C';
+  }
+
+  var n = s.net || {};
+  var nt = document.getElementById('netType');
+  if (nt) {
+    nt.textContent = (n.type === 'wifi') ? 'Wi-Fi' : ((n.type === 'mobile') ? '移动数据' : (n.type || '-'));
+    document.getElementById('netVpn').textContent = n.vpn ? n.vpn : '无';
+    document.getElementById('netTfo').textContent = (n.fastopen == 3) ? '3（服务端 + 客户端）' : (n.fastopen || '-');
+    document.getElementById('netTag').innerHTML = '<span class="tag ok">已优化</span>';
+  }
+
+  var wl = document.getElementById('wlTag');
+  if (wl) wl.innerHTML = '<span class="tag">' + (s.whitelist || 0) + ' 个</span>';
+  var bt = document.getElementById('bootTag');
+  if (bt) bt.innerHTML = '<span class="tag">已禁 ' + ((s.autostart && s.autostart.disabled) || 0) + ' 个</span>';
+}
+
+function setConf(key, val, cb) {
+  var tpl = 'CF=/data/adb/star-fluency/config.conf; touch $CF; ' +
+    'if grep -q "^{K}=" $CF; then sed -i "s|^{K}=.*|{K}={V}|" $CF; else echo "{K}={V}" >> $CF; fi';
+  var cmd = tpl.replace(/\{K\}/g, key).replace(/\{V\}/g, val);
+  sh(cmd, function (code) { if (cb) cb(code); });
+}
+
+function wlLoad() {
+  var box = document.getElementById('wlList');
+  if (!box) return;
+  sh('sh ' + MODDIR + '/scripts/whitelist.sh list', function (code, out) {
+    var lines = (out || '').split('\n').filter(function (x) {
+      x = x.trim();
+      return x && x.charAt(0) !== '(';
+    });
+    if (!lines.length) { box.innerHTML = '<div class="hint" style="margin-top:2px">白名单为空</div>'; return; }
+    var h = '';
+    lines.forEach(function (p) {
+      h += '<div class="row"><span class="k" style="font-family:ui-monospace,monospace;color:var(--txt)">' + p + '</span>' +
+        '<button class="btn danger" style="width:auto;padding:5px 12px;font-size:12px" onclick="wlDel(\'' + p + '\')">移除</button></div>';
+    });
+    box.innerHTML = h;
+  });
+}
+function wlAdd() {
+  var el = document.getElementById('wlInput');
+  var p = (el.value || '').trim();
+  if (!p) { toast('请先输入包名'); return; }
+  el.value = '';
+  sh('sh ' + MODDIR + '/scripts/whitelist.sh add ' + p, function (code, out) {
+    toast(code === 0 ? '已加入白名单' : ('失败：' + ((out || '').trim() || '未知')));
+    wlLoad();
+    setTimeout(loadStatus, 500);
+  });
+}
+function wlDel(p) {
+  sh('sh ' + MODDIR + '/scripts/whitelist.sh del ' + p, function () {
+    toast('已移出白名单');
+    wlLoad();
+    setTimeout(loadStatus, 500);
+  });
+}
+
+function bootLoad() {
+  var box = document.getElementById('bootList');
+  if (!box) return;
+  sh('sh ' + MODDIR + '/scripts/autostart.sh disabled', function (code, out) {
+    var lines = (out || '').split('\n').filter(function (x) {
+      x = x.trim();
+      return x && x.charAt(0) !== '(';
+    });
+    if (!lines.length) { box.innerHTML = '<div class="hint" style="margin-top:2px">没有禁用任何自启项</div>'; return; }
+    var h = '';
+    lines.forEach(function (p) {
+      h += '<div class="row"><span class="k" style="font-family:ui-monospace,monospace;color:var(--txt)">' + p + '</span>' +
+        '<button class="btn" style="width:auto;padding:5px 12px;font-size:12px" onclick="bootEnable(\'' + p + '\')">恢复</button></div>';
+    });
+    box.innerHTML = h;
+  });
+}
+function bootDisable() {
+  var el = document.getElementById('bootInput');
+  var p = (el.value || '').trim();
+  if (!p) { toast('请先输入包名'); return; }
+  el.value = '';
+  toast('处理中…');
+  sh('sh ' + MODDIR + '/scripts/autostart.sh disable ' + p, function (code, out) {
+    toast(code === 0 ? '已禁止开机自启' : ('失败：' + ((out || '').trim() || '未知')));
+    bootLoad();
+    setTimeout(loadStatus, 500);
+  });
+}
+function bootEnable(p) {
+  sh('sh ' + MODDIR + '/scripts/autostart.sh enable ' + p, function () {
+    toast('已恢复自启');
+    bootLoad();
+    setTimeout(loadStatus, 500);
+  });
+}
+
+function netApply() {
+  toast('应用中…');
+  var p = (STATE.profile && STATE.profile !== 'stock') ? STATE.profile : 'balance';
+  sh('sh ' + MODDIR + '/scripts/net.sh apply ' + p, function (code) {
+    toast(code === 0 ? '网络参数已应用' : '失败');
+    setTimeout(loadStatus, 600);
+  });
+}
+function netRevert() {
+  toast('恢复中…');
+  sh('sh ' + MODDIR + '/scripts/net.sh revert', function (code) {
+    toast(code === 0 ? '已恢复网络原厂值' : '失败');
+    setTimeout(loadStatus, 600);
+  });
+}
+
+function diagLoad() {
+  var t = document.getElementById('diagTime');
+  if (t) t.textContent = '采集中…';
+  sh('sh ' + MODDIR + '/scripts/diagnose.sh json', function (code, out) {
+    if (code !== 0 || !out || !out.trim()) { toast('诊断失败'); if (t) t.textContent = '失败'; return; }
+    var d;
+    try { d = JSON.parse(out); } catch (e) { toast('解析失败'); if (t) t.textContent = '失败'; return; }
+    var dm = new Date();
+    if (t) t.textContent = dm.getHours() + ':' + String(dm.getMinutes()).padStart(2, '0');
+    var L = d.load || {}, M = d.mem || {}, W = d.swap || {}, Z = d.zram || {}, P = d.psi || {};
+    document.getElementById('dLoad').textContent = (L.la || '-').split(' ')[0];
+    document.getElementById('dLoadPct').textContent = (L.cores || 8) + ' 核占用 ' + (L.pct || 0) + '%';
+    document.getElementById('dMem').innerHTML = fmtMB(M.avail) + '<small>MB</small>';
+    document.getElementById('dMemSub').textContent = '共 ' + fmtMB(M.total) + ' MB';
+    document.getElementById('dSwap').innerHTML = fmtMB(W.used) + '<small>MB</small>';
+    document.getElementById('dSwapPct').textContent = '占 ' + (W.pct || 0) + '% / ' + fmtMB(W.total) + ' MB';
+    document.getElementById('dRatio').innerHTML = (Z.ratio || 0) + '<small>x</small>';
+    document.getElementById('dAlgo').textContent = (Z.algo || '-') + ' 压缩';
+    document.getElementById('dPsi').textContent = (P.some || '0.00');
+    document.getElementById('dTemp').innerHTML = (d.temp || 0) + '<small>°C</small>';
+    document.getElementById('dCached').textContent = '缓存进程 ' + (d.cached || 0) + ' 个';
+    document.getElementById('dJudge').textContent = ((d.judge || '') + '').trim() || '暂无明显异常';
+
+    var hc = '';
+    (d.topCpu || []).forEach(function (x) {
+      hc += '<div class="row"><span class="k" style="font-family:ui-monospace,monospace;color:var(--txt)">' + x.name +
+        '</span><span class="v diff">' + x.pct + '%</span></div>';
+    });
+    document.getElementById('dTopCpu').innerHTML = hc || '<div class="hint">无数据</div>';
+
+    var hm = '';
+    (d.topMem || []).forEach(function (x) {
+      hm += '<div class="row"><span class="k" style="font-family:ui-monospace,monospace;color:var(--txt)">' + x.name +
+        '</span><span class="v">' + x.mb + ' MB</span></div>';
+    });
+    document.getElementById('dTopMem').innerHTML = hm || '<div class="hint">无数据</div>';
+
+    document.getElementById('dAnr').textContent = (d.anr || 0) + ' 次';
+    document.getElementById('dOom').textContent = (d.oom || 0) + ' 次';
+    document.getElementById('dWl').textContent = ((d.wakelocks && d.wakelocks.count) ? d.wakelocks.count : 0) + ' 个';
+    document.getElementById('dProc').textContent = (d.cached || 0) + ' 个';
+  });
+}
+
+document.getElementById('swScene').addEventListener('change', function () {
+  var v = this.checked ? 1 : 0;
+  setConf('AUTO_SCENE', v, function () {
+    toast(v ? '场景自动切换已开启' : '场景自动切换已关闭');
+    setTimeout(loadStatus, 500);
+  });
+});
+document.getElementById('swTemp').addEventListener('change', function () {
+  var v = this.checked ? 1 : 0;
+  setConf('AUTO_TEMP', v, function () {
+    toast(v ? '温度降级已开启' : '温度降级已关闭');
+    setTimeout(loadStatus, 500);
+  });
+});
+
+document.querySelectorAll('.tab').forEach(function (t) {
+  t.addEventListener('click', function () {
+    var p = t.dataset.p;
+    if (p === 'diag') setTimeout(diagLoad, 50);
+    if (p === 'trim') { setTimeout(wlLoad, 50); setTimeout(bootLoad, 100); }
+  });
+});
+setTimeout(function () { wlLoad(); bootLoad(); }, 500);
+
+/* ========== 开关绑定 ========== */
+function bindTrim(id, key) {
+  var el = document.getElementById(id);
+  el.addEventListener('change', function() {
+    var mode = el.checked ? 'apply' : 'revert';
+    sh('sh ' + MODDIR + '/scripts/trim.sh ' + mode + ' ' + key, function(code) {
+      // 回写配置
+      var upd = key === 'anim' ? '' : 'CF=/data/adb/star-fluency/config.conf; ' +
+        'K=' + key.toUpperCase() + '; V=' + (el.checked ? 1 : 0) + '; ' +
+        'touch $CF; if grep -q "^TRIM_$K=" $CF; then sed -i "s|^TRIM_$K=.*|TRIM_$K=$V|" $CF; else echo "TRIM_$K=$V" >> $CF; fi';
+      sh(upd || 'true', function() { toast(el.checked ? '已开启' : '已关闭'); });
+    });
+  });
+}
+
+document.getElementById('swAuto').addEventListener('change', function() {
+  var on = this.checked;
+  sh('sh ' + MODDIR + '/scripts/motion.sh ' + (on ? 'auto-on' : 'auto-off'), function() {
+    toast(on ? '自动监视已开启' : '自动监视已关闭');
+  });
+});
+
+document.getElementById('swCam').addEventListener('change', function() {
+  var v = this.checked ? 1 : 0;
+  sh('CF=/data/adb/star-fluency/config.conf; touch $CF; ' +
+     'if grep -q "^CAM_IDLE_KILL=" $CF; then sed -i "s|^CAM_IDLE_KILL=.*|CAM_IDLE_KILL=' + v + '|" $CF; ' +
+     'else echo "CAM_IDLE_KILL=' + v + '" >> $CF; fi', function() {
+    toast(v ? '相机闲置清理已开启' : '已关闭');
+  });
+});
+
+bindTrim('swPa', 'pa');
+bindTrim('swGms', 'gms');
+bindTrim('swAnim', 'anim');
+bindTrim('swPlay', 'play');
+bindTrim2('swMarket', 'market');
+bindTrim2('swContent', 'content');
+bindTrim2('swGmsSlim', 'gms');
+bindTrim2('swCached', 'cached');
+
+/* 第二组 trim 绑定 */
+function bindTrim2(id, key) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('change', function() {
+    var mode = el.checked ? 'apply' : 'revert';
+    toast('处理中…');
+    sh('sh ' + MODDIR + '/scripts/trim2.sh ' + mode + ' ' + key, function(code) {
+      var K = key.toUpperCase();
+      var V = el.checked ? 1 : 0;
+      sh('CF=/data/adb/star-fluency/config.conf; touch $CF; ' +
+         'if grep -q "^TRIM_' + K + '=" $CF; then sed -i "s|^TRIM_' + K + '=.*|TRIM_' + K + '=' + V + '|" $CF; ' +
+         'else echo "TRIM_' + K + '=' + V + '" >> $CF; fi', function() {
+        toast(el.checked ? '已开启' : '已关闭');
+        setTimeout(loadStatus, 800);
+      });
+    });
+  });
+}
+
+/* 小程序闲置清理开关 */
+document.getElementById('swAb').addEventListener('change', function() {
+  var v = this.checked ? 1 : 0;
+  sh('CF=/data/adb/star-fluency/config.conf; touch $CF; ' +
+     'if grep -q "^APPBRAND_IDLE=" $CF; then sed -i "s|^APPBRAND_IDLE=.*|APPBRAND_IDLE=' + v + '|" $CF; ' +
+     'else echo "APPBRAND_IDLE=' + v + '" >> $CF; fi', function() {
+    toast(v ? '小程序清理已开启' : '已关闭');
+    setTimeout(loadStatus, 600);
+  });
+});
+
+/* ========== Tab ========== */
+document.querySelectorAll('.tab').forEach(function(t) {
+  t.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('on'); });
+    document.querySelectorAll('.pane').forEach(function(x){ x.classList.remove('on'); });
+    t.classList.add('on');
+    document.getElementById('p-' + t.dataset.p).classList.add('on');
+  });
+});
+document.querySelectorAll('[data-prof]').forEach(function(b) {
+  b.addEventListener('click', function() { applyProfile(b.dataset.prof); });
+});
+
+/* ========== 启动 ========== */
+loadStatus();
+setInterval(loadStatus, 5000);
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "webui": {
+    "engine": "ksu",
+    "kill": "none"
+  },
+  "webui-engine": "ksu",
+  "readme": "https://github.com/ce11kjw/Star-Fluency",
+  "homepage": "https://github.com/ce11kjw/Star-Fluency"
+}
