@@ -73,6 +73,15 @@ case "$MODE" in
     ;;
 esac
 
+# ---- CPU 频率交给调度引擎，避免两套互相覆盖 ----
+case "$MODE" in
+  smooth) SCHED_PROFILE=performance ;;
+  stock)  SCHED_PROFILE=stock ;;
+  *)      SCHED_PROFILE=balance ;;
+esac
+sh "${MODDIR:-/data/adb/modules/star_fluency}/scripts/sched.sh" apply "$SCHED_PROFILE" >/dev/null 2>&1
+CPU0_MIN=""; CPU4_MIN=""; CPU7_MIN=""
+
 # ---- 内存 ----
 w /proc/sys/vm/swappiness "$SWAPPINESS" swappiness
 w /proc/sys/vm/vfs_cache_pressure "$VFS" vfs_cache_pressure
