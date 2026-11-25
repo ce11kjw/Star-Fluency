@@ -169,6 +169,10 @@ EOF
     echo "m0=$(cat $CPU/cpufreq/policy0/scaling_min_freq 2>/dev/null)"
     echo "m4=$(cat $CPU/cpufreq/policy4/scaling_min_freq 2>/dev/null)"
     echo "m7=$(cat $CPU/cpufreq/policy7/scaling_min_freq 2>/dev/null)"
+    echo "soc_temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0)"
+    ;;
+  fg)
+    top_app_now
     ;;
   app-add)
     P="$2"; M="$3"

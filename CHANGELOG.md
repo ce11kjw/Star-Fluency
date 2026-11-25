@@ -1,5 +1,11 @@
 # 更新日志
 
+## v1.2.2（2026-11-25）
+
+- 调度页：新增「CPU 核心温度」（thermal_zone0）、「取当前前台应用」按钮（自动填包名）
+- sched.sh：新增 `fg` 动作、status 增加 `soc_temp` 字段
+- 状态缓存 TTL 20s → 60s（配合 10s 轮询，冷路径占比降到 1/6）
+
 ## v1.2.1（2026-11-25）
 
 - 修复两套写频率的问题：「调优」页的 apply.sh 不再自己写 scaling_min_freq，改为委托调度引擎（balance→均衡、smooth→性能、stock→原厂），全局只有 sched.sh 一个写者

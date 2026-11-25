@@ -434,6 +434,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="row"><span class="k">clamp_min</span><span class="v" id="sdClamp">-</span></div>
     <div class="row"><span class="k">小/中/大核 当前频率</span><span class="v" id="sdFreq">-</span></div>
     <div class="row"><span class="k">小/中/大核 下限</span><span class="v" id="sdMin">-</span></div>
+    <div class="row"><span class="k">CPU 核心温度</span><span class="v" id="sdSocTemp">-</span></div>
   </div>
 
   <div class="card">
@@ -478,6 +479,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
   <div class="card">
     <h3>按应用绑定 <em id="sdAppTag"></em></h3>
+    <div class="btns" style="margin-bottom:6px"><button class="btn" onclick="sdPickFG()">取当前前台应用</button></div>
     <div class="btns" style="margin-bottom:4px">
       <input id="sdPkg" placeholder="com.example.game" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
       <select id="sdPkgMode" style="width:auto;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--txt);font-size:12.5px">
@@ -1220,6 +1222,24 @@ document.querySelectorAll('.tab').forEach(function (t) {
 });
 
 setTimeout(sdLoad, 700);
+
+/* 追加：CPU 核心温度显示 + 取当前前台应用 */
+var _sdRenderOld = sdRender;
+sdRender = function () {
+  _sdRenderOld();
+  var el = document.getElementById('sdSocTemp');
+  if (el) el.textContent = (SD.soc_temp && SD.soc_temp > 0) ? (SD.soc_temp / 1000).toFixed(1) + ' °C' : '-';
+};
+
+function sdPickFG() {
+  sh('sh ' + MODDIR + '/scripts/sched.sh fg', function (code, out) {
+    var p = (out || '').trim();
+    if (!p) { toast('取不到前台应用'); return; }
+    document.getElementById('sdPkg').value = p;
+    toast('已填入 ' + p);
+  });
+}
+
 setInterval(sdLoad, 10000);
 </script>
 </body>
