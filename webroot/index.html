@@ -328,7 +328,19 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div id="bootList"><div class="hint">加载中…</div></div>
     <div class="hint">只禁用「开机自动启动」的接收器，应用照常能打开、推送不受影响，随时可恢复</div>
   </div>
+  <div class="card">
+    <h3>外放音效 <em id="audioTag"></em></h3>
+    <div class="row">
+      <span class="k">还原低频 / 去破音</span>
+      <label class="sw"><input type="checkbox" id="swAudio"><i></i></label>
+    </div>
+    <div class="hint">把 77–329Hz 的抬升从 7–10dB 降到 3–5dB，800/1k 少压，Movie 档降强度。原理：11U 外放放不出这段低频，抬满只会变成削顶破音。切换会重载音频栈（约 1 秒静音）</div>
+  </div>
 </div>
+  <div class="card">
+    <h3>说明</h3>
+    <div class="hint">音效改动以 bind mount 方式挂到 /vendor/etc/dolby/dax-default.xml，不修改分区文件；原厂文件已备份到 /data/adb/star-fluency/audio/</div>
+  </div>
 
 <!-- ========== 状态 ========== -->
 <div class="pane" id="p-stat">
@@ -1312,6 +1324,49 @@ document.querySelectorAll('.tab').forEach(function (t) {
 });
 
 setTimeout(sdLoad, 700);
+setInterval(sdLoad, 10000);
+
+/* 外放调音开关 */
+function audioLoad() {
+  sh('sh ' + MODDIR + '/scripts/audio.sh status', function (code, out) {
+    var on = (out || '').indexOf('state=on') >= 0;
+    var el = document.getElementById('swAudio');
+    if (el) el.checked = on;
+    var t = document.getElementById('audioTag');
+    if (t) t.innerHTML = on ? '<span class="tag ok">已启用</span>' : '<span class="tag no">原厂</span>';
+  });
+}
+document.getElementById('swAudio').addEventListener('change', function () {
+  var on = this.checked;
+  toast(on ? '应用调音…' : '还原中…');
+  sh('sh ' + MODDIR + '/scripts/audio.sh ' + (on ? 'on' : 'off'), function (code) {
+    toast(code === 0 ? (on ? '已启用' : '已还原原厂') : '失败');
+    setTimeout(audioLoad, 600);
+  });
+});
+setTimeout(audioLoad, 900);
+
+/* 健康度来源 + 采样时间 */
+function relTime(t) {
+  if (!t) return '';
+  var s = Math.floor(Date.now() / 1000) - t;
+  if (s < 0) s = 0;
+  if (s < 60) return '刚刚';
+  if (s < 3600) return Math.floor(s / 60) + ' 分钟前';
+  if (s < 86400) return Math.floor(s / 3600) + ' 小时前';
+  return Math.floor(s / 86400) + ' 天前';
+}
+var _sdR9 = sdRender;
+sdRender = function () {
+  _sdR9();
+  var b = (STATE && STATE.bat) || {};
+  var st = document.getElementById('hpSrcTag');
+  if (!st) return;
+  var meas = (b.src === 'measured');
+  var t = b.segts || b.now || 0;
+  st.className = 'tag' + (meas ? ' ok' : '');
+  st.textContent = (meas ? '实测' : '系统值') + (t ? ' · ' + relTime(t) : '');
+};
 
 /* 追加：CPU 核心温度显示 + 取当前前台应用 */
 var _sdRenderOld = sdRender;

@@ -42,10 +42,10 @@ sample() {
         if [ "$DT" -le 180 ] && [ "$pST" = "$ST" ] && [ "$pV" -gt 0 ] && [ "$I" -gt 0 ]; then
             awk -v ts="$TS" -v v0="$pV" -v i0="$pI" -v v1="$V" -v i1="$I" -v out="$BD/ir.tsv" 'BEGIN{
                 di = (i1 > i0) ? i1 - i0 : i0 - i1;
-                if (di < 300000) exit;
+                if (di < 500000) exit;   # 要求 ΔI >= 0.5A，避免小电流噪声
                 dv = (v1 > v0) ? v1 - v0 : v0 - v1;
                 ir = dv / di * 1000;   # µV/µA = Ω -> mΩ
-                if (ir < 10 || ir > 800) exit;
+                if (ir < 25 || ir > 600) exit;   # 手机电芯合理区间
                 printf "%s %.1f %s %s\n", ts, ir, v1, i1 >> out;
             }'
         fi

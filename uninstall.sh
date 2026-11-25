@@ -1,3 +1,4 @@
+sh /data/adb/modules/star_fluency/scripts/audio.sh off >/dev/null 2>&1
 #!/system/bin/sh
 # 卸载：还原所有原厂设置
 

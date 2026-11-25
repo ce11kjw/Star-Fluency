@@ -48,7 +48,7 @@ if [ -z "$BH" ]; then
     printf '%s\n' "$BH" > "$HC" 2>/dev/null
 fi
 
-BH_H=""; BH_SRC=""; BH_MEAS=""; BH_SEGS=""; BH_SYS=""; BH_DES=""; BH_CYC=""; BH_IR=""; BH_IRTR=""
+BH_H=""; BH_SRC=""; BH_MEAS=""; BH_SEGS=""; BH_SYS=""; BH_DES=""; BH_CYC=""; BH_IR=""; BH_IRTR=""; BH_SEGTS=""
 while IFS='=' read -r k v; do
     case "$k" in
         health) BH_H=$v ;;
@@ -60,6 +60,7 @@ while IFS='=' read -r k v; do
         cycles) BH_CYC=$v ;;
         ir_mohm) BH_IR=$v ;;
         ir_trend) BH_IRTR=$v ;;
+        last_seg_ts) BH_SEGTS=$v ;;
     esac
 done <<EOF
 $BH
@@ -74,8 +75,11 @@ EOF
 [ -z "$BH_CYC" ] && BH_CYC=0
 [ -z "$BH_IR" ] && BH_IR=0
 [ -z "$BH_IRTR" ] && BH_IRTR=0
+[ -z "$BH_SEGTS" ] && BH_SEGTS=0
+NOW=$(date +%s 2>/dev/null)
+[ -z "$NOW" ] && NOW=0
 
-printf '{"mem":{"total":%s,"avail":%s},"load":"%s %s %s","cpu":{"f0":%s,"f4":%s,"f7":%s,"temp":%s},"bat":{"soc":%s,"health":%s,"src":"%s","mah":%s,"design":%s,"cycles":%s,"meas":%s,"segs":%s,"temp":%s,"cur":%s,"pwr":%s,"status":"%s","ir":%s,"irtr":%s}}\n' \
+printf '{"mem":{"total":%s,"avail":%s},"load":"%s %s %s","cpu":{"f0":%s,"f4":%s,"f7":%s,"temp":%s},"bat":{"soc":%s,"health":%s,"src":"%s","mah":%s,"design":%s,"cycles":%s,"meas":%s,"segs":%s,"temp":%s,"cur":%s,"pwr":%s,"status":"%s","ir":%s,"irtr":%s,"now":%s,"segts":%s}}\n' \
     "$MEM_T" "$MEM_A" "$L1" "$L2" "$L3" \
     "${F0:-0}" "${F4:-0}" "${F7:-0}" "$CPUT" \
-    "${SOC:-0}" "$BH_H" "$BH_SRC" "$BH_SYS" "$BH_DES" "$BH_CYC" "$BH_MEAS" "$BH_SEGS" "$BT" "$BI" "$BP" "$BST" "$BH_IR" "$BH_IRTR"
+    "${SOC:-0}" "$BH_H" "$BH_SRC" "$BH_SYS" "$BH_DES" "$BH_CYC" "$BH_MEAS" "$BH_SEGS" "$BT" "$BI" "$BP" "$BST" "$BH_IR" "$BH_IRTR" "$NOW" "$BH_SEGTS"

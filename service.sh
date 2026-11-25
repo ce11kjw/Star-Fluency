@@ -123,4 +123,9 @@ if [ "$BATD_ON" != "0" ]; then
     fi
 fi
 
+# 外放调参（开机重新挂载，开关记录在 audio/enabled）
+if [ "$(cat "$SF_DIR/audio/enabled" 2>/dev/null)" = "on" ]; then
+    sh "$MODDIR/scripts/audio.sh" on >/dev/null 2>&1 && log "外放调参已挂载"
+fi
+
 log "service.sh 完成"

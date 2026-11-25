@@ -67,3 +67,8 @@ echo "segs=$SEGS"
 echo "ir_mohm=$IR"
 echo "ir_trend=$IR_TREND"
 echo "ir_n=$IR_N"
+# 最近一次实测区段的时间戳（没有则为 0）
+LAST_SEG=0
+[ -f "$BD/segments.tsv" ] && LAST_SEG=$(tail -1 "$BD/segments.tsv" 2>/dev/null | awk '{print $1}')
+[ -z "$LAST_SEG" ] && LAST_SEG=0
+echo "last_seg_ts=$LAST_SEG"
