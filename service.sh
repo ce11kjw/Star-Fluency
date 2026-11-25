@@ -103,4 +103,14 @@ if [ -n "$AUTON" ]; then
     ) &
 fi
 
+# 自研调度守护（场景识别 + Scene 外部源）
+SCHED_ON=$(grep -E '^SCHED_ENABLED=' "$SF_DIR/config.conf" 2>/dev/null | cut -d= -f2)
+if [ "$SCHED_ON" != "0" ]; then
+    PIDF="$SF_DIR/sched/sched.pid"
+    if [ ! -f "$PIDF" ] || ! kill -0 "$(cat "$PIDF" 2>/dev/null)" 2>/dev/null; then
+        log "启动调度守护"
+        setsid sh "$MODDIR/scripts/sched-daemon.sh" >/dev/null 2>&1 &
+    fi
+fi
+
 log "service.sh 完成"
