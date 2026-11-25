@@ -4,7 +4,7 @@
 MODDIR=${MODDIR:-/data/adb/modules/star_fluency}
 SF_DIR=/data/adb/star-fluency
 CACHE=$SF_DIR/status.cache
-AGE=${1:-60}
+AGE=${1:-180}
 mkdir -p "$SF_DIR" 2>/dev/null
 
 if [ -s "$CACHE" ]; then

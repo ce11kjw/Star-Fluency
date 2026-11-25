@@ -96,22 +96,30 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 <div class="pane on" id="p-tune">
   <div class="card">
     <h3>CPU / 电池实时 <em id="hpTag"></em></h3>
-    <div class="stat">
-      <div class="lbl">当前满电 / 设计容量</div>
-      <div class="num" id="hpHealth">-<small>%</small></div>
-      <div class="bar"><i id="hpBar" style="width:0%"></i></div>
-      <div class="sub" id="hpHealthSub">-</div>
+    <div class="grid">
+      <div class="stat">
+        <div class="lbl">电池健康 <em id="hpSrcTag" class="tag">-</em></div>
+        <div class="num" id="hpHealth">-<small>%</small></div>
+        <div class="bar"><i id="hpBar" style="width:0%"></i></div>
+        <div class="sub" id="hpHealthSub">-</div>
+      </div>
+      <div class="stat">
+        <div class="lbl">CPU 核心温度</div>
+        <div class="num" id="hpCpuTemp2">-<small>°C</small></div>
+        <div class="sub" id="hpCpuFreq2">-</div>
+      </div>
     </div>
     <div class="row"><span class="k">电池温度</span><span class="v" id="hpBatTemp">-</span></div>
     <div class="row"><span class="k">放电电流</span><span class="v" id="hpBatCur">-</span></div>
     <div class="row"><span class="k">功率</span><span class="v" id="hpBatPwr">-</span></div>
     <div class="row"><span class="k">内阻（趋势）</span><span class="v" id="hpIr">-</span></div>
-    <div class="row"><span class="k">CPU 核心温度</span><span class="v" id="hpCpuTemp">-</span></div>
     <div class="row"><span class="k">小/中/大核频率</span><span class="v" id="hpCpuFreq">-</span></div>
     <div class="row"><span class="k">负载</span><span class="v" id="hpLoad">-</span></div>
     <div class="hint">健康度优先用实测值（跨 25% 放电区段的库仑计差分），没有样本时退回系统单点值；内阻趋势相对首次记录</div>
   </div>
 
+  <div class="card">
+    <h3>性能档位 <em id="curProfile">读取中</em></h3>
     <h3>性能档位 <em id="curProfile">读取中</em></h3>
     <div class="seg">
       <button data-prof="balance" id="btnBalance">平衡</button>
@@ -1116,7 +1124,20 @@ document.querySelectorAll('[data-prof]').forEach(function(b) {
 
 /* ========== 启动 ========== */
 loadStatus();
-setInterval(loadStatus, 10000);
+/* 极致省电：轻量 10s、重活 60s、页面不可见时暂停 */
+function fastLoad() {
+  sh('sh ' + MODDIR + '/scripts/status-fast.sh', function (code, out) {
+    if (code !== 0 || !out) return;
+    var d; try { d = JSON.parse(out); } catch (e) { return; }
+    STATE.mem = d.mem; STATE.load = d.load; STATE.cpu = d.cpu;
+    STATE.bat = Object.assign(STATE.bat || {}, d.bat);
+    render();
+  });
+}
+setInterval(function () { if (!document.hidden) fastLoad(); }, 10000);
+document.addEventListener('visibilitychange', function () { if (!document.hidden) fastLoad(); });
+
+setInterval(function () { if (!document.hidden) loadStatus(); }, 60000);
 </script>
 <script>
 /* ========== 调度页（独立脚本块，复用上面的 sh()/toast()/MODDIR） ========== */
@@ -1317,7 +1338,30 @@ sdRender = function () {
   if (e) e.textContent = (SD.core_limit || '68') + ' °C';
 };
 
-/* 首页：实时状态（CPU / 电池） */
+/* 首页：异常标红 + 来源标注 */
+var _sdR8 = sdRender;
+sdRender = function () {
+  _sdR8();
+  var b = (STATE && STATE.bat) || {};
+  var c = (STATE && STATE.cpu) || {};
+  function tint(id, bad, warn) {
+    var e = document.getElementById(id);
+    if (!e) return;
+    e.style.color = bad ? '#f25b5b' : (warn ? '#f2b84e' : '');
+  }
+  tint('hpBatTemp', (b.temp || 0) >= 45, (b.temp || 0) >= 42);
+  tint('hpCpuTemp2', (c.temp || 0) >= 70, (c.temp || 0) >= 65);
+  tint('hpBatPwr', (b.pwr || 0) >= 15000000);
+  tint('hpIr', (b.irtr || 0) >= 20);
+  tint('hpHealth', (b.health || 0) < 80);
+  var st = document.getElementById('hpSrcTag');
+  if (st) { if (b.src === 'measured') { st.className = 'tag ok'; st.textContent = '实测'; } else { st.className = 'tag'; st.textContent = '系统值'; } }
+  var t2 = document.getElementById('hpCpuTemp2');
+  if (t2) t2.innerHTML = (c.temp || 0) + '<small>°C</small>';
+  var f2 = document.getElementById('hpCpuFreq2');
+  if (f2) f2.textContent = [c.f0, c.f4, c.f7].map(function (x) { return x ? Math.round(x / 1000) : '-' }).join(' / ') + ' MHz';
+};
+
 var _sdR7 = sdRender;
 sdRender = function () {
   _sdR7();
