@@ -51,14 +51,23 @@ in_window() {
 
 # 根据温度与时段算出目标电流（mA），以及原因
 desired_ma() {
+    H=$(conf CHARGE_TEMP_HYST); [ -z "$H" ] && H=2
+    PREV=$(grep '^tier=' "$ST" 2>/dev/null | cut -d= -f2)
+    [ -z "$PREV" ] && PREV=0
     RAW=$(cat $B/temp 2>/dev/null); [ -z "$RAW" ] && RAW=0
     T=$((RAW / 10))
     TARGET=$MAX_MA
+    # 迟滞：已处于更严档位时，要降到「阈值 - 迟滞」才放宽
+    E1=$T1; E2=$T2; E3=$T3
+    [ "$PREV" -ge 1 ] && E1=$((T1 - H))
+    [ "$PREV" -ge 2 ] && E2=$((T2 - H))
+    [ "$PREV" -ge 3 ] && E3=$((T3 - H))
+    TIER=0
     WHY="不限"
     if [ "$TEMP_ON" = "1" ]; then
-        if [ "$T" -ge "$T3" ]; then TARGET=$T3MA; WHY="${T}°C≥${T3}°C"
-        elif [ "$T" -ge "$T2" ]; then TARGET=$T2MA; WHY="${T}°C≥${T2}°C"
-        elif [ "$T" -ge "$T1" ]; then TARGET=$T1MA; WHY="${T}°C≥${T1}°C"
+        if [ "$T" -ge "$E3" ]; then TARGET=$T3MA; TIER=3; WHY="${T}°C≥${E3}°C"
+        elif [ "$T" -ge "$E2" ]; then TARGET=$T2MA; TIER=2; WHY="${T}°C≥${E2}°C"
+        elif [ "$T" -ge "$E1" ]; then TARGET=$T1MA; TIER=1; WHY="${T}°C≥${E1}°C"
         fi
     fi
     if [ "$NIGHT_ON" = "1" ] && in_window; then
@@ -67,7 +76,7 @@ desired_ma() {
             WHY="夜间时段"
         fi
     fi
-    echo "$TARGET $WHY $T"
+    echo "$TARGET $WHY $T $TIER"
 }
 
 write_ma() {
@@ -92,6 +101,7 @@ write_ma() {
         # 驱动可能在上报旧值，再写一次
         echo "${MA}000" > "$CCC" 2>/dev/null
     fi
+    sed -i '/^cur_ma=/d' "$ST" 2>/dev/null
     echo "cur_ma=$MA" >> "$ST"
 }
 
@@ -114,12 +124,14 @@ case "$1" in
     case "$S_STATUS" in
       Charging)
         set -- $(desired_ma)
-        TARGET=$1; WHY=$2; T=$3
+        TARGET=$1; WHY=$2; T=$3; TIER=$4
         CUR_MA=$(( $(cat "$CCC" 2>/dev/null || echo 0) / 1000 ))
         if [ "$TARGET" -ge "$MAX_MA" ]; then
             applied && restore && log "充电不限流（${T}°C）"
         elif [ "$CUR_MA" != "$TARGET" ]; then
             write_ma "$TARGET"
+            sed -i '/^tier=/d' "$ST" 2>/dev/null
+            echo "tier=${TIER:-0}" >> "$ST"
             echo "night_charging" > /dev/null
             log "充电限流 ${TARGET}mA（$WHY，${T}°C）"
         fi
@@ -142,6 +154,7 @@ case "$1" in
     echo "applied=$(applied && echo 1 || echo 0)"
     echo "cur_ma=$(echo "$(cat "$CCC" 2>/dev/null)" | awk '{printf "%d", $1/1000}')"
     echo "target_ma=$1"
+    echo "tier=${4:-0}"
     echo "reason=$2"
     echo "temp=$3"
     echo "in_window=$(in_window && echo 1 || echo 0)"

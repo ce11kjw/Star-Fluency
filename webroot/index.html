@@ -1386,6 +1386,43 @@ if (_swCT) _swCT.addEventListener('change', function () {
 });
 setTimeout(function () { chargeLoad(); chargeLoad2(); }, 1000);
 setInterval(chargeLoad2, 15000);
+/* 首页卡片兜底刷新：不依赖 render 链，任何一处报错也能显示 */
+function hpSet(id, txt) { var e = document.getElementById(id); if (e) e.textContent = txt; }
+function hpRefresh() {
+  sh('sh ' + MODDIR + '/scripts/status-fast.sh', function (code, out) {
+    if (code !== 0 || !out) { hpSet('hpHealthSub', '采集失败(code=' + code + ')'); return; }
+    var d;
+    try { d = JSON.parse(out); } catch (e) {
+      hpSet('hpHealthSub', '解析失败');
+      console.log('status-fast parse fail', e, out);
+      return;
+    }
+    try {
+      var b = d.bat || {}, c = d.cpu || {};
+      STATE.bat = b; STATE.cpu = c; STATE.mem = d.mem; STATE.load = d.load;
+      var h = b.health || 0;
+      var hh = document.getElementById('hpHealth');
+      if (hh) hh.innerHTML = h + '<small>%</small>';
+      hpSet('hpHealthSub', (b.mah || 0) + ' / ' + (b.design || 0) + ' mAh · ' + (b.cycles || 0) + ' 次循环 · ' + (b.src === 'measured' ? ('实测 ' + (b.meas || 0) + 'mAh / ' + (b.segs || 0) + ' 段') : '系统单点值'));
+      var bar = document.getElementById('hpBar');
+      if (bar) { bar.style.width = Math.min(100, h) + '%'; bar.style.background = (h && h < 80) ? 'linear-gradient(90deg,#f2b84e,#f25b5b)' : ''; }
+      var t2 = document.getElementById('hpCpuTemp2');
+      if (t2) t2.innerHTML = (c.temp || 0) + '<small>°C</small>';
+      hpSet('hpCpuFreq2', [c.f0, c.f4, c.f7].map(function (x) { return x ? Math.round(x / 1000) : '-' }).join(' / ') + ' MHz');
+      hpSet('hpBatTemp', (b.temp || 0) + ' °C');
+      hpSet('hpBatCur', Math.round((b.cur || 0) / 1000) + ' mA');
+      hpSet('hpBatPwr', ((b.pwr || 0) / 1000000).toFixed(1) + ' W');
+      hpSet('hpIr', (b.ir || 0) + ' mΩ / ' + ((b.irtr > 0 ? '+' : '') + (b.irtr || 0)) + '%');
+      hpSet('hpLoad', ((d.load || '-') + '').split(' ')[0]);
+      var st = document.getElementById('hpSrcTag');
+      if (st) { var ms = (b.src === 'measured'); st.className = 'tag' + (ms ? ' ok' : ''); st.textContent = (ms ? '实测' : '系统值') + (b.segts ? (' · ' + relTime(b.segts)) : ' · 刚刚'); }
+      var tg = document.getElementById('hpTag');
+      if (tg) tg.innerHTML = (h && h < 80) ? '<span class="tag no">建议更换</span>' : '<span class="tag ok">正常</span>';
+    } catch (e) { console.log('hp render fail', e); }
+  });
+}
+setTimeout(hpRefresh, 350);
+setInterval(function () { if (!document.hidden) hpRefresh(); }, 10000);
 
 /* 外放调音开关 */
 function audioLoad() {
