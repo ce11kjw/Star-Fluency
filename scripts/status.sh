@@ -95,6 +95,16 @@ AB_RSS=$(ps -o RSS= -p "${AB_PID:-0}" 2>/dev/null | tr -d ' ')
 GPU_IDLE=$(cat /sys/class/kgsl/kgsl-3d0/idle_timer 2>/dev/null)
 CAM_IDLE=$(conf_of CAM_IDLE_KILL); [ -z "$CAM_IDLE" ] && CAM_IDLE=0
 CAM_PID=$(pidof com.android.camera 2>/dev/null)
+# --- 电池健康 ---
+BAT_DESIGN=$(cat /sys/class/power_supply/battery/charge_full_design 2>/dev/null)
+BAT_FULL=$(cat /sys/class/power_supply/battery/charge_full 2>/dev/null)
+BAT_CYC=$(cat /sys/class/power_supply/battery/cycle_count 2>/dev/null)
+[ -z "$BAT_DESIGN" ] && BAT_DESIGN=0
+[ -z "$BAT_FULL" ] && BAT_FULL=0
+[ -z "$BAT_CYC" ] && BAT_CYC=0
+BAT_HEALTH=0
+[ "$BAT_DESIGN" -gt 0 ] && BAT_HEALTH=$(awk -v f="$BAT_FULL" -v d="$BAT_DESIGN" 'BEGIN{printf "%.0f", f*100/d}')
+
 
 # --- 网络/自动/白名单 ---
 NET_TYPE=$(grep '^type=' /data/adb/star-fluency/net_state 2>/dev/null | cut -d= -f2)
@@ -122,6 +132,7 @@ cat <<JSONEOF
   "mem":{"total":${MEM_TOTAL:-0},"avail":${MEM_AVAIL:-0},"free":${MEM_FREE:-0}},
   "load":"$(esc "$LA")",
   "cpu":{"f0":${F0:-0},"f4":${F4:-0},"f7":${F7:-0}},
+  "bat":{"health":${BAT_HEALTH:-0},"cycles":${BAT_CYC:-0},"mah":$((BAT_FULL / 1000)),"design":$((BAT_DESIGN / 1000))},
   "cur":{
     "swappiness":"$CUR_SWAP","vfs":"$CUR_VFS","dirty":"$CUR_DIRTY","dirtybg":"$CUR_DIRTYBG",
     "minfree":"$CUR_MINFREE","sched":"$(esc "$CUR_SCHED")","readahead":"$CUR_RA",

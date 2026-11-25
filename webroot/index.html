@@ -95,6 +95,16 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 <!-- ========== 调优 ========== -->
 <div class="pane on" id="p-tune">
   <div class="card">
+    <h3>电池健康 <em id="hpTag"></em></h3>
+    <div class="stat">
+      <div class="lbl">当前满电 / 设计容量</div>
+      <div class="num" id="hpHealth">-<small>%</small></div>
+      <div class="bar"><i id="hpBar" style="width:0%"></i></div>
+      <div class="sub" id="hpHealthSub">-</div>
+    </div>
+    <div class="hint">按电池上报的满电容量估算，换过电池或未校准会有偏差</div>
+  </div>
+
     <h3>性能档位 <em id="curProfile">读取中</em></h3>
     <div class="seg">
       <button data-prof="balance" id="btnBalance">平衡</button>
@@ -1300,7 +1310,22 @@ sdRender = function () {
   if (e) e.textContent = (SD.core_limit || '68') + ' °C';
 };
 
-setInterval(sdLoad, 10000);
+/* 首页：电池健康 */
+var _sdR7 = sdRender;
+sdRender = function () {
+  _sdR7();
+  var b = (STATE && STATE.bat) || {};
+  var h = b.health || 0;
+  var el = document.getElementById('hpHealth');
+  if (el) el.innerHTML = h + '<small>%</small>';
+  var sub = document.getElementById('hpHealthSub');
+  if (sub) sub.textContent = (b.mah || 0) + ' / ' + (b.design || 0) + ' mAh · ' + (b.cycles || 0) + ' 次循环';
+  var bar = document.getElementById('hpBar');
+  if (bar) { bar.style.width = Math.min(100, h) + '%'; bar.style.background = (h && h < 80) ? 'linear-gradient(90deg,#f2b84e,#f25b5b)' : ''; }
+  var tg = document.getElementById('hpTag');
+  if (tg) tg.innerHTML = (h && h < 80) ? '<span class="tag no">建议更换</span>' : '<span class="tag ok">正常</span>';
+};
+
 
 /* 按应用绑定：默认用 Scene 的 */
 document.getElementById('swAppScene').addEventListener('change', function () {
