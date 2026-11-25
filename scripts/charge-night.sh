@@ -41,6 +41,7 @@ T3=$(conf CHARGE_T3); [ -z "$T3" ] && T3=44
 T3MA=$(conf CHARGE_T3_MA); [ -z "$T3MA" ] && T3MA=1200
 MAX_MA=$(conf CHARGE_MAX_MA); [ -z "$MAX_MA" ] && MAX_MA=6370
 HYST=$(conf CHARGE_TEMP_HYST); [ -z "$HYST" ] && HYST=2
+FULL=$(conf CHARGE_FULLSPEED); [ -z "$FULL" ] && FULL=0
 
 applied() { [ -f "$ST" ] && grep -q '^applied=1' "$ST" 2>/dev/null; }
 paused() { [ -f "$ST" ] && grep -q '^paused=1' "$ST" 2>/dev/null; }
@@ -124,6 +125,16 @@ case "$1" in
   temp-on)  setk CHARGE_TEMP_ON 1; echo "温度限流：开（≥${T1}°C→${T1MA}mA，≥${T2}°C→${T2MA}mA，≥${T3}°C→${T3MA}mA，迟滞 ${HYST}°C）" ;;
   temp-off) setk CHARGE_TEMP_ON 0; echo "温度限流：关" ;;
   limit-on)  setk CHARGE_LIMIT_ON 1; echo "充电上限：开（充到 ${LPCT}% 停，降到 $((LPCT - GAP))% 续）" ;;
+  full-on)
+    setk CHARGE_FULLSPEED 1
+    sh "$0" tick >/dev/null 2>&1
+    echo "全速充电：开（限流全部让位，按 ${MAX_MA}mA）"
+    ;;
+  full-off)
+    setk CHARGE_FULLSPEED 0
+    sh "$0" tick >/dev/null 2>&1
+    echo "全速充电：关（恢复夜间/温度/上限）"
+    ;;
   bypass-on)
     setk CHARGE_BYPASS 1
     echo "充电旁路：开（插电时停充，改为直供）"
@@ -149,6 +160,24 @@ case "$1" in
     ONLINE=$(cat $USB/online 2>/dev/null); [ -z "$ONLINE" ] && ONLINE=0
     CAP=$(cat $B/capacity 2>/dev/null); [ -z "$CAP" ] && CAP=0
     RPCT=$((LPCT - GAP))
+    # ---- 0) 全速：夜间/温度/容量上限全部让位，电流还原原厂 ----
+    if [ "$FULL" = "1" ]; then
+        if paused; then
+            echo 0 > "$SUSP" 2>/dev/null
+            clearflag paused
+            clearflag bypass
+            log "全速充电：解除充电暂停"
+        fi
+        NOW_MA=$(( $(cat "$CCC" 2>/dev/null || echo 0) / 1000 ))
+        if [ "$NOW_MA" != "$MAX_MA" ]; then
+            echo "${MAX_MA}000" > "$CCC" 2>/dev/null
+            log "全速充电：电流 ${NOW_MA}mA → ${MAX_MA}mA"
+        fi
+        clearflag tier
+        setflag full 1
+        exit 0
+    fi
+    clearflag full
 
     # ---- 1) 容量上限（input_suspend 开关，参考 acc 的 pause/resume）----
     if [ "$ONLINE" != "1" ]; then
@@ -213,6 +242,7 @@ case "$1" in
     echo "capacity=${CAP:-0}"
     echo "usb_online=${ONLINE:-0}"
     echo "night_enabled=$NIGHT_ON"
+    echo "enabled=$NIGHT_ON"
     echo "temp_enabled=$TEMP_ON"
     echo "window=${START_H}:00-${END_H}:00"
     echo "night_ma=$NIGHT_MA"
@@ -221,11 +251,13 @@ case "$1" in
     echo "applied=$(applied && echo 1 || echo 0)"
     echo "cur_ma=$(echo "$(cat "$CCC" 2>/dev/null)" | awk '{printf "%d", $1/1000}')"
     echo "target_ma=$1"
+    echo "limit_ma=$1"
     echo "reason=$2"
     echo "temp=$3"
     echo "in_window=$(in_window && echo 1 || echo 0)"
     echo "batt_status=$(cat $B/status 2>/dev/null)"
     echo "orig_ccc=$(orig_ccc)"
+    echo "full_enabled=$FULL"
     ;;
   *)
     echo "用法: charge-night.sh {on|off|temp-on|temp-off|limit-on|limit-off|set-limit <pct>|tick|status}"
