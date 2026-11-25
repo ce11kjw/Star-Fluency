@@ -475,6 +475,10 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
       <span class="k">温度回退阈值</span>
       <span class="v" id="sdTempLimit">42 °C</span>
     </div>
+    <div class="row">
+      <span class="k">核心温度阈值</span>
+      <span class="v" id="sdCoreLimit">68 °C</span>
+    </div>
     <div class="hint">电池温度达到阈值自动降到省电档，回落自动恢复。888 机型建议 42-45°C</div>
   </div>
 
@@ -1240,6 +1244,24 @@ function sdPickFG() {
     toast('已填入 ' + p);
   });
 }
+
+/* 核心温度阈值 */
+var _sdR4 = sdRender;
+sdRender = function () {
+  _sdR4();
+  var e = document.getElementById('sdCoreLimit');
+  if (e) e.textContent = (SD.core_limit || '68') + ' °C';
+};
+document.getElementById('sdCoreLimit').addEventListener('click', function () {
+  var seq = ['62', '65', '68', '72'];
+  var cur = SD.core_limit || '68';
+  var nx = seq[(seq.indexOf(cur) + 1) % seq.length];
+  SD.core_limit = nx;
+  this.textContent = nx + ' °C';
+  sh('sh ' + MODDIR + '/scripts/sched.sh setcfg SCHED_CORE_TEMP_LIMIT ' + nx, function () {
+    toast('核心温度阈值 ' + nx + ' °C');
+  });
+});
 
 /* 让位态显示 + 接管开关 */
 var _sdRender3 = sdRender;

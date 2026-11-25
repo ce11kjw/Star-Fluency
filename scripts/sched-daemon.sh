@@ -1,8 +1,9 @@
 #!/system/bin/sh
-# Star-Fluency 场景识别守护（每 15s 一轮）
-# 优先级：温度回退 > 按应用覆盖 > 息屏省电 > 充电提档 > 手动档位
-# 由 service.sh 拉起；SCHED_ENABLED=0 时直接退出
-
+# Star-Fluency 场景识别守护（15s 一轮）
+# 分工：
+#   Scene = HP/LP/在线配置  -> 完全让位（只把 clamp_min 归 0）
+#   Scene = 外部来源        -> Scene 驱动档位，我们只守温度
+#   Scene = 自定义 / 无     -> 我们自己管（温度 > 应用规则 > 息屏 > 充电 > 基准）
 SF_DIR=/data/adb/star-fluency
 SCHED_DIR=$SF_DIR/sched
 CONF=$SF_DIR/config.conf
@@ -17,17 +18,19 @@ log() { echo "$(date '+%m-%d %H:%M:%S') [schedd] $*" >> "$LOG" 2>/dev/null; }
 conf() { grep -E "^$1=" "$CONF" 2>/dev/null | cut -d= -f2 | head -1; }
 cur_mode() { grep '^mode=' "$STATE" 2>/dev/null | cut -d= -f2; }
 cur_reason() { grep '^reason=' "$STATE" 2>/dev/null | cut -d= -f2; }
-
-# 前台应用：跳过 mCurrentFocus=null，优先 Window{（约 100ms）
+scene_source() {
+    grep -oE 'name="scene_profile_source">[^<]*' /data/data/com.omarea.vtools/shared_prefs/global.xml 2>/dev/null | sed 's/.*>//'
+}
 top_app() {
     A=$(dumpsys window 2>/dev/null | grep -m1 "mCurrentFocus=Window{" | sed -n "s/.*u[0-9]* \([a-zA-Z0-9_.]*\)\/.*/\1/p")
     [ -z "$A" ] && A=$(dumpsys window 2>/dev/null | grep -m1 "mFocusedApp=ActivityRecord{" | sed -n "s/.*u[0-9]* \([a-zA-Z0-9_.]*\)\/.*/\1/p")
     echo "$A"
 }
 
+# push = 只写参数，不改基准档位（Scene 驱动时不能覆盖它的选择）
 apply() {
     M="$1"; R="$2"; A="$3"
-    sh "$MODDIR/scripts/sched.sh" apply "$M" >/dev/null 2>&1
+    sh "$MODDIR/scripts/sched.sh" push "$M" >/dev/null 2>&1
     {
         echo "mode=$M"
         echo "reason=$R"
@@ -40,36 +43,68 @@ apply() {
 while true; do
     sleep 15
 
-    ENABLED=$(conf SCHED_ENABLED)
-    [ "$ENABLED" = "0" ] && continue
-    # Scene 未使用「外部来源」时自动让位，避免两套写频率
-    SS=$(grep -oE 'name="scene_profile_source">[^<]*' /data/data/com.omarea.vtools/shared_prefs/global.xml 2>/dev/null | sed 's/.*>//')
-    YIELD=$(conf SCHED_YIELD_SCENE); [ -z "$YIELD" ] && YIELD=1
-    if [ -n "$SS" ] && [ "$YIELD" = "1" ] && [ "$SS" != "SOURCE_OUTSIDE" ] && [ "$SS" != "SOURCE_SCENE_CUSTOM" ]; then
-        if [ "$(cur_reason)" != "yield:$SS" ]; then
-            echo 0 > /proc/sys/kernel/sched_util_clamp_min 2>/dev/null
-            { echo "mode=yield"; echo "reason=yield:$SS"; echo "app="; echo "ts=$(date +%s)"; } > "$STATE"
-            log "让位给 Scene ($SS)：不写频率，clamp_min 归 0"
-        fi
-        continue
-    fi
+    [ "$(conf SCHED_ENABLED)" = "0" ] && continue
 
-    BL=$(cat /sys/class/leds/lcd-backlight/brightness 2>/dev/null)
-    [ -z "$BL" ] && BL=1
-    CHG=$(cat /sys/class/power_supply/battery/status 2>/dev/null)
-    T=$(cat /sys/class/power_supply/battery/temp 2>/dev/null)
-    [ -z "$T" ] && T=0
-    T=$((T / 10))
+    SS=$(scene_source)
+    YIELD=$(conf SCHED_YIELD_SCENE); [ -z "$YIELD" ] && YIELD=1
+    TBAT=$(conf SCHED_TEMP_LIMIT); [ -z "$TBAT" ] && TBAT=42
+    TCORE=$(conf SCHED_CORE_TEMP_LIMIT); [ -z "$TCORE" ] && TCORE=68
+
+    BAT=$(cat /sys/class/power_supply/battery/temp 2>/dev/null)
+    [ -z "$BAT" ] && BAT=0
+    BAT=$((BAT / 10))
+    CORE=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
+    [ -z "$CORE" ] && CORE=0
+    CORE=$((CORE / 1000))
+
+    HOT=0
+    [ "$BAT" -ge "$TBAT" ] && HOT=1
+    [ "$CORE" -ge "$TCORE" ] && HOT=1
+
+    # ---- 1) Scene 自带配置在跑 -> 完全让位 ----
+    case "$SS" in
+      SOURCE_SCENE_ONLINE|SOURCE_SCENE_ACTIVE|SOURCE_SCENE_CONSERVATIVE)
+        if [ "$YIELD" = "1" ]; then
+            if [ "$(cur_reason)" != "yield:$SS" ]; then
+                echo 0 > /proc/sys/kernel/sched_util_clamp_min 2>/dev/null
+                {
+                    echo "mode=yield"
+                    echo "reason=yield:$SS"
+                    echo "app="
+                    echo "ts=$(date +%s)"
+                } > "$STATE"
+                log "让位给 Scene ($SS)：不写频率，clamp_min 归 0"
+            fi
+            continue
+        fi
+        ;;
+    esac
 
     BASE=$(conf SCHED_MODE)
     [ -z "$BASE" ] && BASE=$(conf PROFILE)
     [ -z "$BASE" ] && BASE=balance
     case "$BASE" in smooth) BASE=performance ;; stock) BASE=balance ;; esac
 
+    # ---- 2) Scene 用外部来源（调我们）：档位由它定，我们只守温度 ----
+    if [ "$SS" = "SOURCE_OUTSIDE" ]; then
+        if [ "$HOT" = "1" ]; then
+            [ "$(cur_reason)" != "过热" ] && apply powersave "过热" ""
+        else
+            case "$(cur_reason)" in
+                过热) apply "$BASE" "温度恢复" "" ;;
+            esac
+        fi
+        continue
+    fi
+
+    # ---- 3) 我们自己管 ----
     OVERRIDE=$(conf SCHED_APP_OVERRIDE); [ -z "$OVERRIDE" ] && OVERRIDE=1
     SCREEN_SAVE=$(conf SCHED_SCREEN_SAVE); [ -z "$SCREEN_SAVE" ] && SCREEN_SAVE=1
     CHG_BOOST=$(conf SCHED_CHG_BOOST); [ -z "$CHG_BOOST" ] && CHG_BOOST=1
-    TLIMIT=$(conf SCHED_TEMP_LIMIT); [ -z "$TLIMIT" ] && TLIMIT=42
+
+    BL=$(cat /sys/class/leds/lcd-backlight/brightness 2>/dev/null)
+    [ -z "$BL" ] && BL=1
+    CHG=$(cat /sys/class/power_supply/battery/status 2>/dev/null)
 
     APP=""
     if [ "$OVERRIDE" = "1" ] && [ -s "$APPS" ]; then
@@ -79,9 +114,10 @@ while true; do
     MODE="$BASE"
     REASON="基准"
 
-    if [ "$T" -ge "$TLIMIT" ]; then
+    if [ "$HOT" = "1" ]; then
         MODE=powersave
-        REASON="过热 ${T}C>=${TLIMIT}C"
+        REASON="过热"
+        log "温度 核心${CORE}C 电池${BAT}C 超阈值"
     else
         AM=""
         if [ -n "$APP" ] && [ -f "$APPS" ]; then

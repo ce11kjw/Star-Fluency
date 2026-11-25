@@ -124,7 +124,7 @@ app_mode() {
 }
 
 case "$1" in
-  mode|apply)
+  push|mode|apply)
     M="$2"; [ -z "$M" ] && M=balance
     if [ "$(conf SCHED_ENABLED)" = "0" ]; then
         log "调度引擎已停用，跳过 $M"
@@ -136,6 +136,15 @@ case "$1" in
     [ -n "$top_app" ] && echo "$top_app" > "$SCHED_DIR/top_app"
     log "调用来源=$SRC 档位=$M 前台=${top_app:-未传}"
     set_mode "$M"
+    # 手动切换才更新基准档位；Scene 调用(mode)与守护(push)不覆盖
+    if [ "$1" = "apply" ]; then
+        if grep -q '^SCHED_MODE=' "$CONF" 2>/dev/null; then
+            sed -i "s|^SCHED_MODE=.*|SCHED_MODE=$M|" "$CONF"
+        else
+            echo "SCHED_MODE=$M" >> "$CONF"
+        fi
+        log "基准档位记为 $M"
+    fi
     ;;
   init)
     # Scene 启动性能调节时执行一次
@@ -180,6 +189,7 @@ EOF
     echo "m4=$(cat $CPU/cpufreq/policy4/scaling_min_freq 2>/dev/null)"
     echo "m7=$(cat $CPU/cpufreq/policy7/scaling_min_freq 2>/dev/null)"
     echo "soc_temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0)"
+    echo "core_limit=$(conf SCHED_CORE_TEMP_LIMIT)"
     echo "scene=$(scene_source)"
     ;;
   fg)
