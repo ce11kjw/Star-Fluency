@@ -48,6 +48,8 @@ apply() {
 
 while true; do
     sleep 15
+    # 夜间慢充：独立于调度开关，先于让位/温度判断
+    sh "$MODDIR/scripts/charge-night.sh" tick >/dev/null 2>&1
 
     [ "$(conf SCHED_ENABLED)" = "0" ] && continue
 

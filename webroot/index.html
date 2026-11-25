@@ -336,11 +336,21 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     </div>
     <div class="hint">把 77–329Hz 的抬升从 7–10dB 降到 3–5dB，800/1k 少压，Movie 档降强度。原理：11U 外放放不出这段低频，抬满只会变成削顶破音。切换会重载音频栈（约 1 秒静音）</div>
   </div>
-</div>
   <div class="card">
     <h3>说明</h3>
     <div class="hint">音效改动以 bind mount 方式挂到 /vendor/etc/dolby/dax-default.xml，不修改分区文件；原厂文件已备份到 /data/adb/star-fluency/audio/</div>
   </div>
+  <div class="card">
+    <h3>夜间慢充 <em id="chargeTag"></em></h3>
+    <div class="row">
+      <span class="k">时段内限流（23:00–07:00）</span>
+      <label class="sw"><input type="checkbox" id="swChargeNight"><i></i></label>
+    </div>
+    <div class="row"><span class="k">充电电流上限</span><span class="v" id="chargeLimit">-</span></div>
+    <div class="row"><span class="k">电池状态</span><span class="v" id="chargeState">-</span></div>
+    <div class="hint">夜里把 6.37A 压到 1.5A（约 6W），白天/拔电自动还原。降低充电温升，延后电池鼓包与衰减；插上充电器后 15 秒内生效</div>
+  </div>
+</div>
 
 <!-- ========== 状态 ========== -->
 <div class="pane" id="p-stat">
@@ -1325,6 +1335,30 @@ document.querySelectorAll('.tab').forEach(function (t) {
 
 setTimeout(sdLoad, 700);
 setInterval(sdLoad, 10000);
+
+/* 夜间慢充开关 */
+function chargeLoad() {
+  sh('sh ' + MODDIR + '/scripts/charge-night.sh status', function (code, out) {
+    var o = {};
+    (out || '').split('\n').forEach(function (l) { var i = l.indexOf('='); if (i > 0) o[l.slice(0, i)] = l.slice(i + 1); });
+    var el = document.getElementById('swChargeNight');
+    if (el) el.checked = (o.enabled === '1');
+    var lim = document.getElementById('chargeLimit');
+    if (lim) lim.textContent = (o.limit_ma || '-') + ' mA';
+    var st = document.getElementById('chargeState');
+    if (st) st.textContent = (o.batt_status || '-') + (o.applied === '1' ? ' · 限流中' : '');
+    var tg = document.getElementById('chargeTag');
+    if (tg) tg.innerHTML = (o.applied === '1') ? '<span class="tag ok">限流中</span>' : ((o.enabled === '1') ? '<span class="tag">待生效</span>' : '<span class="tag no">关闭</span>');
+  });
+}
+document.getElementById('swChargeNight').addEventListener('change', function () {
+  var on = this.checked;
+  sh('sh ' + MODDIR + '/scripts/charge-night.sh ' + (on ? 'on' : 'off'), function (code) {
+    toast(code === 0 ? (on ? '夜间慢充已开启' : '已关闭') : '失败');
+    setTimeout(chargeLoad, 600);
+  });
+});
+setTimeout(chargeLoad, 1000);
 
 /* 外放调音开关 */
 function audioLoad() {
