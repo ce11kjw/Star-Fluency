@@ -104,6 +104,19 @@ BAT_CYC=$(cat /sys/class/power_supply/battery/cycle_count 2>/dev/null)
 [ -z "$BAT_CYC" ] && BAT_CYC=0
 BAT_HEALTH=0
 [ "$BAT_DESIGN" -gt 0 ] && BAT_HEALTH=$(awk -v f="$BAT_FULL" -v d="$BAT_DESIGN" 'BEGIN{printf "%.0f", f*100/d}')
+# --- 估算引擎结果 ---
+BH=$(sh "${MODDIR:-/data/adb/modules/star_fluency}/scripts/batt-health.sh" 2>/dev/null)
+bhg() { echo "$BH" | grep "^$1=" | cut -d= -f2; }
+BH_H=$(bhg health); [ -z "$BH_H" ] && BH_H=$BAT_HEALTH
+BH_SRC=$(bhg health_src); [ -z "$BH_SRC" ] && BH_SRC=system
+BH_MEAS=$(bhg meas_mah); [ -z "$BH_MEAS" ] && BH_MEAS=0
+BH_SEGS=$(bhg segs); [ -z "$BH_SEGS" ] && BH_SEGS=0
+BH_IR=$(bhg ir_mohm); [ -z "$BH_IR" ] && BH_IR=0
+BH_IRTR=$(bhg ir_trend); [ -z "$BH_IRTR" ] && BH_IRTR=0
+BAT_T=$(cat /sys/class/power_supply/battery/temp 2>/dev/null); [ -z "$BAT_T" ] && BAT_T=0; BAT_T=$((BAT_T / 10))
+BAT_I=$(cat /sys/class/power_supply/battery/current_now 2>/dev/null); [ -z "$BAT_I" ] && BAT_I=0
+BAT_P=$(cat /sys/class/power_supply/battery/power_now 2>/dev/null); [ -z "$BAT_P" ] && BAT_P=0
+CPU_T=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null); [ -z "$CPU_T" ] && CPU_T=0; CPU_T=$((CPU_T / 1000))
 
 
 # --- 网络/自动/白名单 ---
@@ -131,8 +144,8 @@ cat <<JSONEOF
   "swap":{"total":${SWAP_TOTAL:-0},"used":${SWAP_USED:-0}},
   "mem":{"total":${MEM_TOTAL:-0},"avail":${MEM_AVAIL:-0},"free":${MEM_FREE:-0}},
   "load":"$(esc "$LA")",
-  "cpu":{"f0":${F0:-0},"f4":${F4:-0},"f7":${F7:-0}},
-  "bat":{"health":${BAT_HEALTH:-0},"cycles":${BAT_CYC:-0},"mah":$((BAT_FULL / 1000)),"design":$((BAT_DESIGN / 1000))},
+  "cpu":{"f0":${F0:-0},"f4":${F4:-0},"f7":${F7:-0},"temp":${CPU_T:-0}},
+  "bat":{"health":${BH_H:-0},"cycles":${BAT_CYC:-0},"mah":$((BAT_FULL / 1000)),"design":$((BAT_DESIGN / 1000)),"meas":${BH_MEAS:-0},"segs":${BH_SEGS:-0},"src":"$(esc "$BH_SRC")","temp":${BAT_T:-0},"cur":${BAT_I:-0},"pwr":${BAT_P:-0},"ir":${BH_IR:-0},"irtr":${BH_IRTR:-0}},
   "cur":{
     "swappiness":"$CUR_SWAP","vfs":"$CUR_VFS","dirty":"$CUR_DIRTY","dirtybg":"$CUR_DIRTYBG",
     "minfree":"$CUR_MINFREE","sched":"$(esc "$CUR_SCHED")","readahead":"$CUR_RA",

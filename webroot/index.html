@@ -95,14 +95,21 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 <!-- ========== 调优 ========== -->
 <div class="pane on" id="p-tune">
   <div class="card">
-    <h3>电池健康 <em id="hpTag"></em></h3>
+    <h3>CPU / 电池实时 <em id="hpTag"></em></h3>
     <div class="stat">
       <div class="lbl">当前满电 / 设计容量</div>
       <div class="num" id="hpHealth">-<small>%</small></div>
       <div class="bar"><i id="hpBar" style="width:0%"></i></div>
       <div class="sub" id="hpHealthSub">-</div>
     </div>
-    <div class="hint">按电池上报的满电容量估算，换过电池或未校准会有偏差</div>
+    <div class="row"><span class="k">电池温度</span><span class="v" id="hpBatTemp">-</span></div>
+    <div class="row"><span class="k">放电电流</span><span class="v" id="hpBatCur">-</span></div>
+    <div class="row"><span class="k">功率</span><span class="v" id="hpBatPwr">-</span></div>
+    <div class="row"><span class="k">内阻（趋势）</span><span class="v" id="hpIr">-</span></div>
+    <div class="row"><span class="k">CPU 核心温度</span><span class="v" id="hpCpuTemp">-</span></div>
+    <div class="row"><span class="k">小/中/大核频率</span><span class="v" id="hpCpuFreq">-</span></div>
+    <div class="row"><span class="k">负载</span><span class="v" id="hpLoad">-</span></div>
+    <div class="hint">健康度优先用实测值（跨 25% 放电区段的库仑计差分），没有样本时退回系统单点值；内阻趋势相对首次记录</div>
   </div>
 
     <h3>性能档位 <em id="curProfile">读取中</em></h3>
@@ -1310,7 +1317,31 @@ sdRender = function () {
   if (e) e.textContent = (SD.core_limit || '68') + ' °C';
 };
 
-/* 首页：电池健康 */
+/* 首页：实时状态（CPU / 电池） */
+var _sdR7 = sdRender;
+sdRender = function () {
+  _sdR7();
+  var b = (STATE && STATE.bat) || {};
+  var c = (STATE && STATE.cpu) || {};
+  var h = b.health || 0;
+  var el = document.getElementById('hpHealth');
+  if (el) el.innerHTML = h + '<small>%</small>';
+  var sub = document.getElementById('hpHealthSub');
+  if (sub) sub.textContent = (b.mah || 0) + ' / ' + (b.design || 0) + ' mAh · ' + (b.cycles || 0) + ' 次循环 · ' + (b.src === 'measured' ? ('实测 ' + b.meas + 'mAh / ' + b.segs + ' 段') : '系统单点值');
+  var bar = document.getElementById('hpBar');
+  if (bar) { bar.style.width = Math.min(100, h) + '%'; bar.style.background = (h && h < 80) ? 'linear-gradient(90deg,#f2b84e,#f25b5b)' : ''; }
+  var tg = document.getElementById('hpTag');
+  if (tg) tg.innerHTML = (h && h < 80) ? ('<span class="tag no">建议更换</span>') : '<span class="tag ok">正常</span>';
+  var row = function (id, v) { var e = document.getElementById(id); if (e) e.textContent = v; };
+  row('hpBatTemp', (b.temp || 0) + ' °C');
+  row('hpBatCur', ((b.cur || 0) / 1000).toFixed(0) + ' mA');
+  row('hpBatPwr', ((b.pwr || 0) / 1000000).toFixed(1) + ' W');
+  row('hpIr', (b.ir || 0) + ' mΩ / ' + (b.irtr > 0 ? '+' : '') + (b.irtr || 0) + '%');
+  row('hpCpuTemp', (c.temp || 0) + ' °C');
+  row('hpCpuFreq', [c.f0, c.f4, c.f7].map(function (x) { return x ? Math.round(x / 1000) : '-' }).join(' / ') + ' MHz');
+  row('hpLoad', ((STATE && STATE.load) || '-').split(' ')[0]);
+};
+
 var _sdR7 = sdRender;
 sdRender = function () {
   _sdR7();

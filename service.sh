@@ -113,4 +113,14 @@ if [ "$SCHED_ON" != "0" ]; then
     fi
 fi
 
+# 电池采样守护（60s，估算容量/内阻）
+BATD_ON=$(grep -E '^SCHED_ENABLED=' "$SF_DIR/config.conf" 2>/dev/null | cut -d= -f2)
+if [ "$BATD_ON" != "0" ]; then
+    BPIDF="$SF_DIR/battery/battd.pid"
+    if [ ! -f "$BPIDF" ] || ! kill -0 "$(cat "$BPIDF" 2>/dev/null)" 2>/dev/null; then
+        mkdir -p "$SF_DIR/battery" 2>/dev/null
+        setsid sh "$MODDIR/scripts/battd.sh" >/dev/null 2>&1 &
+    fi
+fi
+
 log "service.sh 完成"
