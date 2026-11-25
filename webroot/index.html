@@ -347,6 +347,17 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
       <label class="sw"><input type="checkbox" id="swChargeNight"><i></i></label>
     </div>
     <div class="row">
+      <span class="k">充电上限</span>
+      <label class="sw"><input type="checkbox" id="swChargeLimit"><i></i></label>
+    </div>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">上限百分比</span>
+        <span class="v" id="chargeLimitPct">80 %</span>
+      </div>
+      <input type="range" id="rgChargeLimit" min="50" max="100" step="1" value="80" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
+    </div>
+    <div class="row">
       <span class="k">温度分档限流</span>
       <label class="sw"><input type="checkbox" id="swChargeTemp"><i></i></label>
     </div>
@@ -354,7 +365,9 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="row"><span class="k">电池状态</span><span class="v" id="chargeState">-</span></div>
     <div class="row"><span class="k">电池温度</span><span class="v" id="chargeTemp">-</span></div>
     <div class="row"><span class="k">当前限值</span><span class="v" id="chargeTarget">-</span></div>
-    <div class="hint">只在你插着充电器时生效：38°C 以上降到 3A，41°C 降到 2A，44°C 降到 1.2A；夜间 23:00–07:00 额外压到 1.5A（两者取更严的）。拔电或降温自动还原，插上充电器后 15 秒内生效</div>
+    <div class="row"><span class="k">当前电量</span><span class="v" id="chargeCap">-</span></div>
+    <div class="row"><span class="k">上限状态</span><span class="v" id="chargeLimitState">-</span></div>
+    <div class="hint">充电上限：充到设定值就暂停（input_suspend），降到「上限−3%」自动续充；拔电必定解除暂停，避免下次插上不充电。温度/夜间限流是压电流，上限是停止充电，两者可同时开</div>
   </div>
 </div>
 
@@ -1386,6 +1399,41 @@ if (_swCT) _swCT.addEventListener('change', function () {
 });
 setTimeout(function () { chargeLoad(); chargeLoad2(); }, 1000);
 setInterval(chargeLoad2, 15000);
+/* 充电上限：开关 + 滑条 */
+function chargeLimitLoad() {
+  sh('sh ' + MODDIR + '/scripts/charge-night.sh status', function (code, out) {
+    var o = {};
+    (out || '').split('\n').forEach(function (l) { var i = l.indexOf('='); if (i > 0) o[l.slice(0, i)] = l.slice(i + 1); });
+    var sw = document.getElementById('swChargeLimit');
+    if (sw) sw.checked = (o.limit_enabled === '1');
+    var rg = document.getElementById('rgChargeLimit');
+    if (rg && document.activeElement !== rg) rg.value = o.limit_pct || '80';
+    var lb = document.getElementById('chargeLimitPct');
+    if (lb) lb.textContent = (o.limit_pct || '80') + ' %';
+    var cap = document.getElementById('chargeCap');
+    if (cap) cap.textContent = (o.capacity || '0') + ' %';
+    var st = document.getElementById('chargeLimitState');
+    if (st) st.textContent = (o.limit_paused === '1') ? '已暂停充电' : (o.usb_online === '1' ? '充电中' : '未插电');
+  });
+}
+var _rgCL = document.getElementById('rgChargeLimit');
+if (_rgCL) {
+  _rgCL.addEventListener('input', function () { var lb = document.getElementById('chargeLimitPct'); if (lb) lb.textContent = this.value + ' %'; });
+  _rgCL.addEventListener('change', function () {
+    var v = this.value;
+    sh('sh ' + MODDIR + '/scripts/charge-night.sh set-limit ' + v, function () { toast('充电上限 ' + v + '%'); chargeLimitLoad(); });
+  });
+}
+var _swCL = document.getElementById('swChargeLimit');
+if (_swCL) _swCL.addEventListener('change', function () {
+  var on = this.checked;
+  sh('sh ' + MODDIR + '/scripts/charge-night.sh ' + (on ? 'limit-on' : 'limit-off'), function (code) {
+    toast(code === 0 ? (on ? '充电上限已开启' : '已关闭并恢复充电') : '失败');
+    setTimeout(chargeLimitLoad, 500);
+  });
+});
+setTimeout(chargeLimitLoad, 1100);
+setInterval(chargeLimitLoad, 15000);
 /* 首页卡片兜底刷新：不依赖 render 链，任何一处报错也能显示 */
 function hpSet(id, txt) { var e = document.getElementById(id); if (e) e.textContent = txt; }
 function hpRefresh() {
