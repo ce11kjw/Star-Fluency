@@ -42,6 +42,7 @@ T3MA=$(conf CHARGE_T3_MA); [ -z "$T3MA" ] && T3MA=1200
 MAX_MA=$(conf CHARGE_MAX_MA); [ -z "$MAX_MA" ] && MAX_MA=6370
 HYST=$(conf CHARGE_TEMP_HYST); [ -z "$HYST" ] && HYST=2
 FULL=$(conf CHARGE_FULLSPEED); [ -z "$FULL" ] && FULL=0
+FULL_MAX_T=$(conf CHARGE_FULL_MAX_T); [ -z "$FULL_MAX_T" ] && FULL_MAX_T=45
 
 applied() { [ -f "$ST" ] && grep -q '^applied=1' "$ST" 2>/dev/null; }
 paused() { [ -f "$ST" ] && grep -q '^paused=1' "$ST" 2>/dev/null; }
@@ -126,12 +127,20 @@ case "$1" in
   temp-off) setk CHARGE_TEMP_ON 0; echo "温度限流：关" ;;
   limit-on)  setk CHARGE_LIMIT_ON 1; echo "充电上限：开（充到 ${LPCT}% 停，降到 $((LPCT - GAP))% 续）" ;;
   full-on)
+    TN=$(cat $B/temp 2>/dev/null); [ -z "$TN" ] && TN=0
+    TN=$((TN / 10))
+    if [ "$TN" -ge "$FULL_MAX_T" ]; then
+        echo "温度 ${TN}°C ≥ 上限 ${FULL_MAX_T}°C，已拒绝开启（先降温再试）"
+        exit 1
+    fi
     setk CHARGE_FULLSPEED 1
+    clearflag full_trip
     sh "$0" tick >/dev/null 2>&1
-    echo "全速充电：开（限流全部让位，按 ${MAX_MA}mA）"
+    echo "全速充电：开（限流全部让位，按 ${MAX_MA}mA；${FULL_MAX_T}°C 自动退出）"
     ;;
   full-off)
     setk CHARGE_FULLSPEED 0
+    clearflag full_trip
     sh "$0" tick >/dev/null 2>&1
     echo "全速充电：关（恢复夜间/温度/上限）"
     ;;
@@ -160,22 +169,32 @@ case "$1" in
     ONLINE=$(cat $USB/online 2>/dev/null); [ -z "$ONLINE" ] && ONLINE=0
     CAP=$(cat $B/capacity 2>/dev/null); [ -z "$CAP" ] && CAP=0
     RPCT=$((LPCT - GAP))
-    # ---- 0) 全速：夜间/温度/容量上限全部让位，电流还原原厂 ----
+    # ---- 0) 全速：限流全部让位，电流还原原厂；到温度上限自动退出 ----
     if [ "$FULL" = "1" ]; then
-        if paused; then
-            echo 0 > "$SUSP" 2>/dev/null
-            clearflag paused
-            clearflag bypass
-            log "全速充电：解除充电暂停"
+        TN=$(cat $B/temp 2>/dev/null); [ -z "$TN" ] && TN=0
+        TN=$((TN / 10))
+        if [ "$TN" -ge "$FULL_MAX_T" ]; then
+            setk CHARGE_FULLSPEED 0
+            setflag full_trip 1
+            clearflag full
+            FULL=0
+            log "全速充电：${TN}°C 达到上限 ${FULL_MAX_T}°C，已自动关闭并恢复限流"
+        else
+            if paused; then
+                echo 0 > "$SUSP" 2>/dev/null
+                clearflag paused
+                clearflag bypass
+                log "全速充电：解除充电暂停"
+            fi
+            NOW_MA=$(( $(cat "$CCC" 2>/dev/null || echo 0) / 1000 ))
+            if [ "$NOW_MA" != "$MAX_MA" ]; then
+                echo "${MAX_MA}000" > "$CCC" 2>/dev/null
+                log "全速充电：电流 ${NOW_MA}mA → ${MAX_MA}mA"
+            fi
+            clearflag tier
+            setflag full 1
+            exit 0
         fi
-        NOW_MA=$(( $(cat "$CCC" 2>/dev/null || echo 0) / 1000 ))
-        if [ "$NOW_MA" != "$MAX_MA" ]; then
-            echo "${MAX_MA}000" > "$CCC" 2>/dev/null
-            log "全速充电：电流 ${NOW_MA}mA → ${MAX_MA}mA"
-        fi
-        clearflag tier
-        setflag full 1
-        exit 0
     fi
     clearflag full
 
@@ -258,6 +277,8 @@ case "$1" in
     echo "batt_status=$(cat $B/status 2>/dev/null)"
     echo "orig_ccc=$(orig_ccc)"
     echo "full_enabled=$FULL"
+    echo "full_max_t=$FULL_MAX_T"
+    echo "full_trip=$(grep -q '^full_trip=1' "$ST" 2>/dev/null && echo 1 || echo 0)"
     ;;
   *)
     echo "用法: charge-night.sh {on|off|temp-on|temp-off|limit-on|limit-off|set-limit <pct>|tick|status}"

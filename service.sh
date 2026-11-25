@@ -30,6 +30,8 @@ log "调优应用完成"
 
 # 网络优化
 NETON=$(grep -E '^NET_OPT=' "$SF_DIR/config.conf" 2>/dev/null | cut -d= -f2)
+[ -z "$NETON" ] && NETON=1
+grep -q '^NET_OPT=' "$SF_DIR/config.conf" 2>/dev/null || echo 'NET_OPT=1' >> "$SF_DIR/config.conf"
 if [ "$NETON" = "1" ]; then
     sleep 5
     PROF=$(grep -E '^PROFILE=' "$SF_DIR/config.conf" 2>/dev/null | cut -d= -f2)
@@ -114,7 +116,8 @@ if [ "$SCHED_ON" != "0" ]; then
 fi
 
 # 电池采样守护（60s，估算容量/内阻）
-BATD_ON=$(grep -E '^SCHED_ENABLED=' "$SF_DIR/config.conf" 2>/dev/null | cut -d= -f2)
+BATD_ON=$(grep -E '^BATTD_ON=' "$SF_DIR/config.conf" 2>/dev/null | cut -d= -f2)
+[ -z "$BATD_ON" ] && BATD_ON=1
 if [ "$BATD_ON" != "0" ]; then
     BPIDF="$SF_DIR/battery/battd.pid"
     if [ ! -f "$BPIDF" ] || ! kill -0 "$(cat "$BPIDF" 2>/dev/null)" 2>/dev/null; then
@@ -128,4 +131,6 @@ if [ "$(cat "$SF_DIR/audio/enabled" 2>/dev/null)" = "on" ]; then
     sh "$MODDIR/scripts/audio.sh" on >/dev/null 2>&1 && log "外放调参已挂载"
 fi
 
+sh "$MODDIR/scripts/charge-night.sh" tick >/dev/null 2>&1
+log "充电策略已应用（含全速开关状态）"
 log "service.sh 完成"

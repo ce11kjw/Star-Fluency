@@ -346,6 +346,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
       <span class="k">全速充电（让位所有限流）</span>
       <label class="sw"><input type="checkbox" id="swChargeFull"><i></i></label>
     </div>
+    <div class="hint" id="chargeFullHint"></div>
     <div class="row">
       <span class="k">时段内限流（23:00–07:00）</span>
       <label class="sw"><input type="checkbox" id="swChargeNight"><i></i></label>
@@ -1506,9 +1507,18 @@ function chargeLoad() {
     var st = document.getElementById('chargeState');
     if (st) st.textContent = (o.batt_status || '-') + (o.applied === '1' ? ' · 限流中' : '');
     var tg = document.getElementById('chargeTag');
-    if (tg) tg.innerHTML = (o.applied === '1') ? '<span class="tag ok">限流中</span>' : ((o.enabled === '1') ? '<span class="tag">待生效</span>' : '<span class="tag no">关闭</span>');
+    if (tg) tg.innerHTML = (o.full_enabled === '1')
+      ? '<span class="tag no">全速充电中</span>'
+      : ((o.applied === '1') ? '<span class="tag ok">限流中</span>' : ((o.enabled === '1') ? '<span class="tag">待生效</span>' : '<span class="tag no">关闭</span>'));
     var fu = document.getElementById('swChargeFull');
     if (fu) fu.checked = (o.full_enabled === '1');
+    var fh = document.getElementById('chargeFullHint');
+    if (fh) {
+      var mt = o.full_max_t || '45';
+      if (o.full_enabled === '1') fh.innerHTML = '<span style="color:#d87d7d">全速充电中：夜间 / 温度 / 上限全部让位，电池 ≥ ' + mt + '°C 自动退出</span>';
+      else if (o.full_trip === '1') fh.innerHTML = '<span style="color:#d9a441">上次因电池温度过高，已自动关闭全速</span>';
+      else fh.textContent = '全速时不限流，电池 ≥ ' + mt + '°C 自动关闭并恢复限流';
+    }
   });
 }
 document.getElementById('swChargeNight').addEventListener('change', function () {
