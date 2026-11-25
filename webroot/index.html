@@ -405,6 +405,30 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="row"><span class="k">中核 ×3</span><span class="v" id="c4">-</span></div>
     <div class="row"><span class="k">大核 ×1</span><span class="v" id="c7">-</span></div>
   </div>
+  <div class="card">
+    <h3>电池曲线 <em id="histTag"></em></h3>
+    <div class="btns" style="margin-bottom:9px">
+      <button class="btn" onclick="histLoad(24)">24 小时</button>
+      <button class="btn" onclick="histLoad(168)">7 天</button>
+    </div>
+    <div id="histBox" class="hint">点上面按钮加载（蓝=电量，橙=温度）</div>
+  </div>
+
+  <div class="card">
+    <h3>内存 <em id="ramTag"></em></h3>
+    <div class="grid">
+      <div class="stat"><div class="lbl">可用内存</div><div class="num" id="ramAvail">-<small>MB</small></div><div class="bar"><i id="ramBar" style="width:0%"></i></div></div>
+      <div class="stat"><div class="lbl">缓存 / Swap</div><div class="num" id="ramCached">-<small>MB</small></div><div class="sub" id="ramSwap">-</div></div>
+    </div>
+    <div class="row"><span class="k">zram 压缩率</span><span class="v" id="ramRatio">-</span></div>
+    <div class="row"><span class="k">缓存进程上限（当前生效）</span><span class="v" id="ramProc">-</span></div>
+    <div style="padding:9px 0">
+      <div style="display:flex;justify-content:space-between;font-size:13px"><span class="k">调整缓存进程上限</span><span class="v" id="ramProcLbl">64</span></div>
+      <input type="range" id="rgProc" min="32" max="96" step="8" value="64" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
+    </div>
+    <div class="btns"><button class="btn" onclick="histExport()">导出电池历史 CSV</button></div>
+    <div class="hint">上限越低越省内存、后台重载越多；导出文件在 /sdcard/Download/</div>
+  </div>
 
   <div class="card">
     <h3>运行日志</h3>
@@ -1398,6 +1422,80 @@ if (_swCT) _swCT.addEventListener('change', function () {
   });
 });
 setTimeout(function () { chargeLoad(); chargeLoad2(); }, 1000);
+/* ===== 电池曲线 ===== */
+function histLoad(h) {
+  var box = document.getElementById('histBox');
+  if (!box) return;
+  box.textContent = '加载中…';
+  sh('sh ' + MODDIR + '/scripts/batt-hist.sh ' + h + ' 120', function (code, out) {
+    if (code !== 0 || !out) { box.textContent = '读取失败'; return; }
+    var d; try { d = JSON.parse(out); } catch (e) { box.textContent = '解析失败'; return; }
+    var pts = d.pts || [], tps = d.tpts || [];
+    if (!pts.length) { box.textContent = '还没有足够的采样数据（每分钟一条，攒一会儿再看）'; return; }
+    var W = 320, H = 90, PAD = 4;
+    var t0 = pts[0][0], t1 = pts[pts.length - 1][0];
+    if (t1 <= t0) t1 = t0 + 1;
+    function x(t) { return PAD + (t - t0) / (t1 - t0) * (W - PAD * 2); }
+    function ySoc(v) { return H - PAD - (v / 100) * (H - PAD * 2); }
+    function yTmp(v) { return H - PAD - ((v - 20) / 30) * (H - PAD * 2); }
+    var ps = pts.map(function (p) { return x(p[0]).toFixed(1) + ',' + ySoc(p[1]).toFixed(1); }).join(' ');
+    var pt = tps.map(function (p) { return x(p[0]).toFixed(1) + ',' + yTmp(p[1]).toFixed(1); }).join(' ');
+    var hrs = Math.round((t1 - t0) / 3600);
+    box.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:90px;display:block">' +
+      '<polyline fill="none" stroke="#4ee0f2" stroke-width="1.6" points="' + ps + '"/>' +
+      '<polyline fill="none" stroke="#f2b84e" stroke-width="1.2" opacity=".8" points="' + pt + '"/>' +
+      '</svg>' +
+      '<div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--dim)">' +
+      '<span>电量 ' + (d.soc_min || 0) + '–' + (d.soc_max || 0) + '%</span><span>' + (d.n || 0) + ' 个采样 / 近 ' + hrs + ' 小时</span></div>';
+    var tag = document.getElementById('histTag');
+    if (tag) tag.textContent = hrs + ' 小时';
+  });
+}
+
+function histExport() {
+  sh('sh ' + MODDIR + '/scripts/batt-hist.sh export', function (code, out) {
+    toast((out || '').trim().slice(0, 60) || (code === 0 ? '已导出' : '失败'));
+  });
+}
+
+/* ===== 内存卡 ===== */
+function ramLoad() {
+  var s = STATE || {};
+  var m = s.mem || {}, sw = s.swap || {}, z = s.zram || {}, t = s.trim || {};
+  var el = document.getElementById('ramAvail');
+  if (el) el.innerHTML = fmtMB(m.avail) + '<small>MB</small>';
+  var bar = document.getElementById('ramBar');
+  if (bar) bar.style.width = (m.total ? Math.round(m.avail / m.total * 100) : 0) + '%';
+  var c = document.getElementById('ramCached');
+  if (c) c.innerHTML = fmtMB(m.free) + '<small>MB 空闲</small>';
+  var sv = document.getElementById('ramSwap');
+  if (sv) sv.textContent = fmtMB(sw.used) + ' / ' + fmtMB(sw.total) + ' MB';
+  var rt = document.getElementById('ramRatio');
+  if (rt) rt.textContent = (z.ratio || 0) + 'x（' + (z.algo || '-') + '）';
+  var pr = document.getElementById('ramProc');
+  if (pr) pr.textContent = (t.cached > 0 ? t.cached + ' 个' : '默认');
+  var lb = document.getElementById('ramProcLbl');
+  var rg = document.getElementById('rgProc');
+  if (lb && rg) {
+    if (document.activeElement !== rg && t.cached > 0) { rg.value = t.cached; }
+    lb.textContent = rg.value;
+  }
+}
+var _rgProc = document.getElementById('rgProc');
+if (_rgProc) {
+  _rgProc.addEventListener('input', function () { var l = document.getElementById('ramProcLbl'); if (l) l.textContent = this.value; });
+  _rgProc.addEventListener('change', function () {
+    var v = this.value;
+    sh('settings put global activity_manager_constants max_cached_processes=' + v, function () {
+      toast('缓存进程上限 ' + v);
+      setTimeout(loadStatus, 600);
+    });
+  });
+}
+setTimeout(ramLoad, 1200);
+setInterval(ramLoad, 15000);
+setTimeout(function () { histLoad(24); }, 1500);
+
 setInterval(chargeLoad2, 15000);
 /* 充电上限：开关 + 滑条 */
 function chargeLimitLoad() {
