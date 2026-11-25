@@ -341,14 +341,20 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">音效改动以 bind mount 方式挂到 /vendor/etc/dolby/dax-default.xml，不修改分区文件；原厂文件已备份到 /data/adb/star-fluency/audio/</div>
   </div>
   <div class="card">
-    <h3>夜间慢充 <em id="chargeTag"></em></h3>
+    <h3>充电限流 <em id="chargeTag"></em></h3>
     <div class="row">
       <span class="k">时段内限流（23:00–07:00）</span>
       <label class="sw"><input type="checkbox" id="swChargeNight"><i></i></label>
     </div>
+    <div class="row">
+      <span class="k">温度分档限流</span>
+      <label class="sw"><input type="checkbox" id="swChargeTemp"><i></i></label>
+    </div>
     <div class="row"><span class="k">充电电流上限</span><span class="v" id="chargeLimit">-</span></div>
     <div class="row"><span class="k">电池状态</span><span class="v" id="chargeState">-</span></div>
-    <div class="hint">夜里把 6.37A 压到 1.5A（约 6W），白天/拔电自动还原。降低充电温升，延后电池鼓包与衰减；插上充电器后 15 秒内生效</div>
+    <div class="row"><span class="k">电池温度</span><span class="v" id="chargeTemp">-</span></div>
+    <div class="row"><span class="k">当前限值</span><span class="v" id="chargeTarget">-</span></div>
+    <div class="hint">只在你插着充电器时生效：38°C 以上降到 3A，41°C 降到 2A，44°C 降到 1.2A；夜间 23:00–07:00 额外压到 1.5A（两者取更严的）。拔电或降温自动还原，插上充电器后 15 秒内生效</div>
   </div>
 </div>
 
@@ -1358,7 +1364,28 @@ document.getElementById('swChargeNight').addEventListener('change', function () 
     setTimeout(chargeLoad, 600);
   });
 });
-setTimeout(chargeLoad, 1000);
+function chargeLoad2() {
+  sh('sh ' + MODDIR + '/scripts/charge-night.sh status', function (code, out) {
+    var o = {};
+    (out || '').split('\n').forEach(function (l) { var i = l.indexOf('='); if (i > 0) o[l.slice(0, i)] = l.slice(i + 1); });
+    var tw = document.getElementById('swChargeTemp');
+    if (tw) tw.checked = (o.temp_enabled === '1');
+    var t = document.getElementById('chargeTemp');
+    if (t) t.textContent = (o.temp || '-') + ' °C';
+    var tg = document.getElementById('chargeTarget');
+    if (tg) tg.textContent = (o.target_ma || '-') + ' mA' + (o.reason && o.reason !== '不限' ? ('（' + o.reason + '）') : '');
+  });
+}
+var _swCT = document.getElementById('swChargeTemp');
+if (_swCT) _swCT.addEventListener('change', function () {
+  var on = this.checked;
+  sh('sh ' + MODDIR + '/scripts/charge-night.sh ' + (on ? 'temp-on' : 'temp-off'), function (code) {
+    toast(code === 0 ? (on ? '温度限流已开启' : '已关闭') : '失败');
+    setTimeout(chargeLoad2, 500);
+  });
+});
+setTimeout(function () { chargeLoad(); chargeLoad2(); }, 1000);
+setInterval(chargeLoad2, 15000);
 
 /* 外放调音开关 */
 function audioLoad() {
