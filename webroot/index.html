@@ -498,6 +498,10 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
   <div class="card">
     <h3>按应用绑定 <em id="sdAppTag"></em></h3>
+    <div class="row">
+      <span class="k">用 Scene 的按应用绑定 <em class="tag">推荐</em></span>
+      <label class="sw"><input type="checkbox" id="swAppScene"><i></i></label>
+    </div>
     <div class="btns" style="margin-bottom:6px"><button class="btn" onclick="sdPickFG()">取当前前台应用</button></div>
     <div class="btns" style="margin-bottom:4px">
       <input id="sdPkg" placeholder="包名 或 包名/Activity" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
@@ -510,7 +514,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
       <button class="btn" style="width:auto;padding:11px 14px" onclick="sdAppAdd()">加入</button>
     </div>
     <div id="sdAppList"><div class="hint">加载中…</div></div>
-    <div class="hint">这个应用在前台时用指定档位。想让 Scene 管就别在这里加规则</div>
+    <div class="hint">开关打开时，按应用切档由 Scene 负责（Scene 里给应用选档位）；关掉才使用下面这些本地规则</div>
   </div>
 </div>
 <div id="toast"></div>
@@ -1294,6 +1298,27 @@ sdRender = function () {
   _sdR4();
   var e = document.getElementById('sdCoreLimit');
   if (e) e.textContent = (SD.core_limit || '68') + ' °C';
+};
+
+setInterval(sdLoad, 10000);
+
+/* 按应用绑定：默认用 Scene 的 */
+document.getElementById('swAppScene').addEventListener('change', function () {
+  var useScene = this.checked ? 1 : 0;
+  sh('sh ' + MODDIR + '/scripts/sched.sh setcfg SCHED_APP_OVERRIDE ' + (useScene ? 0 : 1), function () {
+    toast(useScene ? '已改用 Scene 的按应用绑定' : '已改用本页规则');
+    setTimeout(sdLoad, 500);
+  });
+});
+
+var _sdR6 = sdRender;
+sdRender = function () {
+  _sdR6();
+  var sw = document.getElementById('swAppScene');
+  var box = document.getElementById('sdAppList');
+  var on = (SD.app_override !== '1');
+  if (sw) sw.checked = on;
+  if (box) box.style.opacity = (on ? '0.45' : '1');
 };
 
 /* 让位态显示 + 接管开关 */

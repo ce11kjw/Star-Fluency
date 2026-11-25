@@ -104,7 +104,7 @@ while true; do
     fi
 
     # ---- 3) 我们自己管 ----
-    OVERRIDE=$(conf SCHED_APP_OVERRIDE); [ -z "$OVERRIDE" ] && OVERRIDE=1
+    OVERRIDE=$(conf SCHED_APP_OVERRIDE); [ -z "$OVERRIDE" ] && OVERRIDE=0
     SCREEN_SAVE=$(conf SCHED_SCREEN_SAVE); [ -z "$SCREEN_SAVE" ] && SCREEN_SAVE=1
     CHG_BOOST=$(conf SCHED_CHG_BOOST); [ -z "$CHG_BOOST" ] && CHG_BOOST=1
 

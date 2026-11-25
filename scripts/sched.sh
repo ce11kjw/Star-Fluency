@@ -190,6 +190,7 @@ EOF
     echo "m7=$(cat $CPU/cpufreq/policy7/scaling_min_freq 2>/dev/null)"
     echo "soc_temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0)"
     echo "core_limit=$(conf SCHED_CORE_TEMP_LIMIT)"
+    echo "app_override=$(conf SCHED_APP_OVERRIDE)"
     echo "scene=$(scene_source)"
     ;;
   fg)
