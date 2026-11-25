@@ -1,5 +1,16 @@
 # 更新日志
 
+## v1.2.3（2026-11-25）
+
+### 新增：与 Scene 共存（自动让位）
+- 读 Scene 的 `scene_profile_source`（global.xml）判断它当前用什么源：
+  - `SOURCE_SCENE_ONLINE/ACTIVE/CONSERVATIVE`（Scene HP/LP/在线）→ **自动让位**，只把 clamp_min 归 0，不写任何频率
+  - `SOURCE_SCENE_CUSTOM`（自定义）→ **引擎继续接管**（Scene 只当界面/按应用绑定用）
+  - `SOURCE_OUTSIDE`（外部来源）→ **引擎接管**，Scene 四档直接驱动本模块
+- 调度页新增「调度引擎接管」总开关（`SCHED_ENABLED`），关掉后调度守护与「调优」页都不再碰 CPU
+- 调度页显示 Scene 当前源；让位时档位显示「让位给 Scene」
+- `SCHED_YIELD_SCENE`（默认 1）可关掉自动让位，强制引擎优先
+
 ## v1.2.2（2026-11-25）
 
 - 调度页：新增「CPU 核心温度」（thermal_zone0）、「取当前前台应用」按钮（自动填包名）

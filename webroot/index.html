@@ -434,6 +434,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="row"><span class="k">clamp_min</span><span class="v" id="sdClamp">-</span></div>
     <div class="row"><span class="k">小/中/大核 当前频率</span><span class="v" id="sdFreq">-</span></div>
     <div class="row"><span class="k">小/中/大核 下限</span><span class="v" id="sdMin">-</span></div>
+    <div class="row"><span class="k">调度引擎接管 <em class="tag" id="engTag">-</em></span><label class="sw"><input type="checkbox" id="swEngine"><i></i></label></div>
     <div class="row"><span class="k">CPU 核心温度</span><span class="v" id="sdSocTemp">-</span></div>
   </div>
 
@@ -1240,7 +1241,29 @@ function sdPickFG() {
   });
 }
 
-setInterval(sdLoad, 10000);
+/* 让位态显示 + 接管开关 */
+var _sdRender3 = sdRender;
+sdRender = function () {
+  _sdRender3();
+  var eng = document.getElementById('swEngine');
+  if (eng) eng.checked = (SD.enabled !== '0');
+  if ((SD.mode || '') === 'yield') {
+    document.getElementById('sdMode').textContent = '让位给 Scene';
+    var key = (SD.scene || '').replace('SOURCE_SCENE_', '');
+    var map = { OUTSIDE: '外部来源', ONLINE: '在线配置', CUSTOM: '自定义', ACTIVE: 'Scene HP', CONSERVATIVE: 'Scene LP', IMPORT: '文件导入' };
+    document.getElementById('sdReason').textContent = 'Scene：' + (map[key] || key || '未设置');
+  }
+  var et = document.getElementById('engTag');
+  if (et) { et.className = 'tag' + (SD.enabled === '0' ? ' no' : ' ok'); et.textContent = (SD.enabled === '0' ? '已停用' : '运行中'); }
+};
+document.getElementById('swEngine').addEventListener('change', function () {
+  var v = this.checked ? 1 : 0;
+  sh('sh ' + MODDIR + '/scripts/sched.sh setcfg SCHED_ENABLED ' + v, function () {
+    toast(v ? '调度引擎已接管' : '已让位，CPU 交给 Scene / 系统');
+    setTimeout(sdLoad, 600);
+  });
+});
+
 </script>
 </body>
 </html>

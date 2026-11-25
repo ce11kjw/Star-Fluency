@@ -79,7 +79,11 @@ case "$MODE" in
   stock)  SCHED_PROFILE=stock ;;
   *)      SCHED_PROFILE=balance ;;
 esac
-sh "${MODDIR:-/data/adb/modules/star_fluency}/scripts/sched.sh" apply "$SCHED_PROFILE" >/dev/null 2>&1
+if [ "$(grep -E '^SCHED_ENABLED=' /data/adb/star-fluency/config.conf 2>/dev/null | cut -d= -f2)" != "0" ]; then
+    sh "${MODDIR:-/data/adb/modules/star_fluency}/scripts/sched.sh" apply "$SCHED_PROFILE" >/dev/null 2>&1
+else
+    log "调度引擎已停用，CPU 频率交给 Scene / 系统"
+fi
 CPU0_MIN=""; CPU4_MIN=""; CPU7_MIN=""
 
 # ---- 内存 ----

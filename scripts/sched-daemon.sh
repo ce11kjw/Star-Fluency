@@ -42,6 +42,17 @@ while true; do
 
     ENABLED=$(conf SCHED_ENABLED)
     [ "$ENABLED" = "0" ] && continue
+    # Scene 未使用「外部来源」时自动让位，避免两套写频率
+    SS=$(grep -oE 'name="scene_profile_source">[^<]*' /data/data/com.omarea.vtools/shared_prefs/global.xml 2>/dev/null | sed 's/.*>//')
+    YIELD=$(conf SCHED_YIELD_SCENE); [ -z "$YIELD" ] && YIELD=1
+    if [ -n "$SS" ] && [ "$YIELD" = "1" ] && [ "$SS" != "SOURCE_OUTSIDE" ] && [ "$SS" != "SOURCE_SCENE_CUSTOM" ]; then
+        if [ "$(cur_reason)" != "yield:$SS" ]; then
+            echo 0 > /proc/sys/kernel/sched_util_clamp_min 2>/dev/null
+            { echo "mode=yield"; echo "reason=yield:$SS"; echo "app="; echo "ts=$(date +%s)"; } > "$STATE"
+            log "让位给 Scene ($SS)：不写频率，clamp_min 归 0"
+        fi
+        continue
+    fi
 
     BL=$(cat /sys/class/leds/lcd-backlight/brightness 2>/dev/null)
     [ -z "$BL" ] && BL=1

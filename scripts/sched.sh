@@ -22,6 +22,11 @@ mkdir -p "$SCHED_DIR" 2>/dev/null
 log() { echo "$(date '+%m-%d %H:%M:%S') [sched] $*" >> "$LOG" 2>/dev/null; }
 conf() { grep -E "^$1=" "$CONF" 2>/dev/null | cut -d= -f2 | head -1; }
 
+# Scene 当前配置源（SOURCE_OUTSIDE = 外部来源，即调用我们的 powercfg.sh）
+scene_source() {
+    grep -oE 'name="scene_profile_source">[^<]*' /data/data/com.omarea.vtools/shared_prefs/global.xml 2>/dev/null | sed 's/.*>//'
+}
+
 # ---- 写节点：写后读回校验 ----
 w() {
     node="$1"; val="$2"; name="$3"
@@ -121,6 +126,11 @@ app_mode() {
 case "$1" in
   mode|apply)
     M="$2"; [ -z "$M" ] && M=balance
+    if [ "$(conf SCHED_ENABLED)" = "0" ]; then
+        log "调度引擎已停用，跳过 $M"
+        echo "已停用"
+        exit 0
+    fi
     SRC=self; [ "$1" = "mode" ] && SRC=scene
     echo "source=$SRC" > "$SCHED_DIR/source"
     [ -n "$top_app" ] && echo "$top_app" > "$SCHED_DIR/top_app"
@@ -170,6 +180,7 @@ EOF
     echo "m4=$(cat $CPU/cpufreq/policy4/scaling_min_freq 2>/dev/null)"
     echo "m7=$(cat $CPU/cpufreq/policy7/scaling_min_freq 2>/dev/null)"
     echo "soc_temp=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null || echo 0)"
+    echo "scene=$(scene_source)"
     ;;
   fg)
     top_app_now
