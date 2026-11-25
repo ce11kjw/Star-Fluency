@@ -413,6 +413,14 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="row"><span class="k">缓存进程数</span><span class="v" id="dProc">-</span></div>
     <div class="hint">ANR 多说明有应用主线程卡住；OOM 多说明内存不够，可以把缓存进程上限再调低</div>
   </div>
+  <div class="card">
+    <h3>调度与温度 <em id="dSchedTag"></em></h3>
+    <div class="row"><span class="k">当前档位</span><span class="v" id="dMode">-</span></div>
+    <div class="row"><span class="k">触发原因</span><span class="v" id="dReason">-</span></div>
+    <div class="row"><span class="k">Scene 配置源</span><span class="v" id="dScene">-</span></div>
+    <div class="row"><span class="k">clamp_min</span><span class="v" id="dClamp">-</span></div>
+    <div class="row"><span class="k">核心温度</span><span class="v" id="dCore">-</span></div>
+  </div>
 </div>
 
 <!-- ========== 调度 ========== -->
@@ -486,7 +494,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <h3>按应用绑定 <em id="sdAppTag"></em></h3>
     <div class="btns" style="margin-bottom:6px"><button class="btn" onclick="sdPickFG()">取当前前台应用</button></div>
     <div class="btns" style="margin-bottom:4px">
-      <input id="sdPkg" placeholder="com.example.game" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
+      <input id="sdPkg" placeholder="包名 或 包名/Activity" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
       <select id="sdPkgMode" style="width:auto;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--txt);font-size:12.5px">
         <option value="powersave">省电</option>
         <option value="balance">均衡</option>
@@ -956,6 +964,18 @@ function diagLoad() {
     document.getElementById('dOom').textContent = (d.oom || 0) + ' 次';
     document.getElementById('dWl').textContent = ((d.wakelocks && d.wakelocks.count) ? d.wakelocks.count : 0) + ' 个';
     document.getElementById('dProc').textContent = (d.cached || 0) + ' 个';
+    var sc = d.sched || {};
+    var MODE_CN = { powersave: '省电', balance: '均衡', performance: '性能', fast: '极速', yield: '让位给 Scene' };
+    document.getElementById('dMode').textContent = MODE_CN[sc.mode] || sc.mode || '-';
+    document.getElementById('dReason').textContent = sc.reason || '-';
+    var SCN = (sc.scene || '').replace('SOURCE_SCENE_', '');
+    var SCMAP = { OUTSIDE: '外部来源', ONLINE: '在线配置', CUSTOM: '自定义', ACTIVE: 'Scene HP', CONSERVATIVE: 'Scene LP' };
+    document.getElementById('dScene').textContent = SCMAP[SCN] || SCN || '未设置';
+    document.getElementById('dClamp').textContent = (sc.clamp === undefined ? '-' : sc.clamp);
+    document.getElementById('dCore').textContent = (d.core_temp || 0) + ' °C';
+    document.getElementById('dSchedTag').innerHTML = (sc.enabled === '0')
+      ? '<span class="tag no">引擎已停</span>'
+      : ((sc.mode === 'yield') ? '<span class="tag no">Scene 接管</span>' : '<span class="tag ok">引擎运行</span>');
   });
 }
 

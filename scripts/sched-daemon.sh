@@ -26,6 +26,12 @@ top_app() {
     [ -z "$A" ] && A=$(dumpsys window 2>/dev/null | grep -m1 "mFocusedApp=ActivityRecord{" | sed -n "s/.*u[0-9]* \([a-zA-Z0-9_.]*\)\/.*/\1/p")
     echo "$A"
 }
+# 完整组件 pkg/Activity（支持按页面绑定）
+top_app_full() {
+    F=$(dumpsys window 2>/dev/null | grep -m1 "mCurrentFocus=Window{" | sed -n 's/.*u[0-9]* \([a-zA-Z0-9_.]*\)\/\([a-zA-Z0-9_.]*\).*/\1\/\2/p')
+    [ -z "$F" ] && F=$(dumpsys window 2>/dev/null | grep -m1 "mFocusedApp=ActivityRecord{" | sed -n 's/.*u[0-9]* \([a-zA-Z0-9_.]*\)\/\([a-zA-Z0-9_.]*\).*/\1\/\2/p')
+    echo "$F"
+}
 
 # push = 只写参数，不改基准档位（Scene 驱动时不能覆盖它的选择）
 apply() {
@@ -109,6 +115,7 @@ while true; do
     APP=""
     if [ "$OVERRIDE" = "1" ] && [ -s "$APPS" ]; then
         APP=$(top_app)
+        FULL=$(top_app_full)
     fi
 
     MODE="$BASE"
@@ -121,7 +128,8 @@ while true; do
     else
         AM=""
         if [ -n "$APP" ] && [ -f "$APPS" ]; then
-            AM=$(grep -E "^$APP=" "$APPS" 2>/dev/null | head -1 | cut -d= -f2)
+            AM=$(grep -F "$FULL=" "$APPS" 2>/dev/null | head -1 | cut -d= -f2)
+            [ -z "$AM" ] && AM=$(grep -E "^$APP=" "$APPS" 2>/dev/null | head -1 | cut -d= -f2)
         fi
         if [ -n "$AM" ]; then
             MODE="$AM"

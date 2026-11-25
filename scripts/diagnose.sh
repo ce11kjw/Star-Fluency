@@ -63,12 +63,25 @@ CACHED=$(dumpsys activity processes 2>/dev/null | grep -c "cached=")
 TEMP=$(cat /sys/class/power_supply/battery/temp 2>/dev/null)
 
 # ---- 综合诊断结论 ----
+# ---- 调度状态 ----
+SC_STATE=/data/adb/star-fluency/sched/state
+SC_MODE=$(grep '^mode=' "$SC_STATE" 2>/dev/null | cut -d= -f2)
+SC_REASON=$(grep '^reason=' "$SC_STATE" 2>/dev/null | cut -d= -f2)
+SC_SCENE=$(grep -oE 'name="scene_profile_source">[^<]*' /data/data/com.omarea.vtools/shared_prefs/global.xml 2>/dev/null | sed 's/.*>//')
+SC_CLAMP=$(cat /proc/sys/kernel/sched_util_clamp_min 2>/dev/null)
+SC_EN=$(grep '^SCHED_ENABLED=' /data/adb/star-fluency/config.conf 2>/dev/null | cut -d= -f2)
+CORE_RAW=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null)
+[ -z "$CORE_RAW" ] && CORE_RAW=0
+CORE_T=$((CORE_RAW / 1000))
+
 JUDGE=""
 [ "$LA_PCT" -ge 150 ] && JUDGE="${JUDGE}负载过高(${LA1}/${CORES}核) "
 [ "$SWAP_PCT" -ge 70 ] && JUDGE="${JUDGE}Swap用量高(${SWAP_PCT}%) "
 [ "$(awk "BEGIN{print ($PSI_FULL+0 > 5)}")" = "1" ] && JUDGE="${JUDGE}内存压力大 "
 [ "$OOM_CNT" -gt 3 ] && JUDGE="${JUDGE}近期OOM频繁(${OOM_CNT}次) "
 [ "$ANR_CNT" -gt 2 ] && JUDGE="${JUDGE}近期ANR(${ANR_CNT}次) "
+[ "$SC_CLAMP" = "1024" ] && JUDGE="${JUDGE}所有任务被当满负载(clamp 1024) "
+[ "$CORE_T" -ge 70 ] && JUDGE="${JUDGE}核心温度偏高(${CORE_T}C) "
 [ -z "$JUDGE" ] && JUDGE="未发现明显瓶颈"
 
 if [ "$MODE" = "text" ]; then
@@ -136,6 +149,8 @@ cat <<JSONEOF
   "oom":$OOM_CNT,
   "topCpu":$TOPCPU_JSON,
   "topMem":$TOPMEM_JSON,
+  "core_temp":$CORE_T,
+  "sched":{"mode":"$(esc "$SC_MODE")","reason":"$(esc "$SC_REASON")","scene":"$(esc "$SC_SCENE")","clamp":"$(esc "$SC_CLAMP")","enabled":"$(esc "$SC_EN")"},
   "judge":"$(esc "$JUDGE")"
 }
 JSONEOF

@@ -195,6 +195,11 @@ EOF
   fg)
     top_app_now
     ;;
+  fgfull)
+    F=$(dumpsys window 2>/dev/null | grep -m1 "mCurrentFocus=Window{" | sed -n 's/.*u[0-9]* \([a-zA-Z0-9_.]*\)\/\([a-zA-Z0-9_.]*\).*/\1\/\2/p')
+    [ -z "$F" ] && F=$(dumpsys window 2>/dev/null | grep -m1 "mFocusedApp=ActivityRecord{" | sed -n 's/.*u[0-9]* \([a-zA-Z0-9_.]*\)\/\([a-zA-Z0-9_.]*\).*/\1\/\2/p')
+    echo "$F"
+    ;;
   app-add)
     P="$2"; M="$3"
     if [ -z "$P" ] || [ -z "$M" ]; then echo "用法: app-add <包名> <mode>"; exit 1; fi
@@ -209,9 +214,9 @@ EOF
     ;;
   app-del)
     P="$2"
-    [ -z "$P" ] && { echo "用法: app-del <包名>"; exit 1; }
+    [ -z "$P" ] && { echo "用法: app-del <包名 或 包名/Activity>"; exit 1; }
     if [ -f "$APPS" ]; then
-        sed -i "/^$P=/d" "$APPS"
+        awk -v p="$P" 'index($0, p "=") != 1' "$APPS" > "$APPS.tmp" 2>/dev/null && mv "$APPS.tmp" "$APPS"
     fi
     echo "已移除 $P"
     ;;
