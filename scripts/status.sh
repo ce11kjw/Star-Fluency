@@ -120,11 +120,74 @@ CPU_T=$(cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null); [ -z "$CPU_T" ] 
 
 
 # --- 网络/自动/白名单 ---
-NET_TYPE=$(grep '^type=' /data/adb/star-fluency/net_state 2>/dev/null | cut -d= -f2)
-NET_VPN=$(grep '^vpn=' /data/adb/star-fluency/net_state 2>/dev/null | cut -d= -f2)
-[ -z "$NET_TYPE" ] && NET_TYPE=unknown
-[ -z "$NET_VPN" ] && NET_VPN=none
+# --- 网络/自动/白名单 ---
+# 实时判断当前出口（只读 sysfs / proc，不 fork 进程，实测 <5ms）
+NET_TYPE=unknown
+NET_PHYS=""
+for f in /sys/class/net/wlan*/carrier; do
+    [ -e "$f" ] || continue
+    read -r c < "$f" 2>/dev/null
+    if [ "$c" = "1" ]; then
+        NET_TYPE=wifi
+        NET_PHYS=${f#/sys/class/net/}
+        NET_PHYS=${NET_PHYS%/carrier}
+        break
+    fi
+done
+if [ "$NET_TYPE" = "unknown" ]; then
+    while read -r ifc dst gw fl _r; do
+        case "$ifc" in
+            rmnet*|ccmni*|pdp*)
+                if [ "$dst" = "00000000" ]; then NET_TYPE=cellular; NET_PHYS=$ifc; break; fi
+                ;;
+        esac
+    done < /proc/net/route
+fi
+if [ "$NET_TYPE" = "unknown" ] && [ -r /proc/net/if_inet6 ]; then
+    while read -r a1 a2 a3 a4 a5 ifc _r; do
+        case "$ifc" in
+            rmnet*|ccmni*|pdp*) NET_TYPE=cellular; NET_PHYS=$ifc; break ;;
+        esac
+    done < /proc/net/if_inet6
+fi
+# VPN：接口存在且未 down 才算（旧实现读快照，VPN 关了还显示 tun0）
+NET_VPN=none
+for d in /sys/class/net/tun* /sys/class/net/utun* /sys/class/net/wg*; do
+    [ -e "$d" ] || continue
+    read -r op < "$d/operstate" 2>/dev/null
+    [ "$op" = "down" ] && continue
+    NET_VPN=${d#/sys/class/net/}
+    break
+done
+# 上次应用参数时用的是哪种网络（仅用于提示是否需要重新应用）
+NET_APPLIED=$(grep '^type=' /data/adb/star-fluency/net_state 2>/dev/null | cut -d= -f2)
+[ -z "$NET_APPLIED" ] && NET_APPLIED=unknown
+NET_STALE=0
+if [ "$NET_APPLIED" != "unknown" ] && [ "$NET_APPLIED" != "$NET_TYPE" ]; then NET_STALE=1; fi
 TFO=$(rd /proc/sys/net/ipv4/tcp_fastopen)
+# 网络参数：内核真实值（K）+ 用户设定值（S）
+NET_SS_K=$(rd /proc/sys/net/ipv4/tcp_slow_start_after_idle); [ -z "$NET_SS_K" ] && NET_SS_K=0
+NET_MTU_K=$(rd /proc/sys/net/ipv4/tcp_mtu_probing);          [ -z "$NET_MTU_K" ] && NET_MTU_K=0
+NET_TW_K=$(rd /proc/sys/net/ipv4/tcp_tw_reuse);              [ -z "$NET_TW_K" ] && NET_TW_K=0
+NET_NL_K=$(rd /proc/sys/net/ipv4/tcp_notsent_lowat);         [ -z "$NET_NL_K" ] && NET_NL_K=0
+NET_FIN_K=$(rd /proc/sys/net/ipv4/tcp_fin_timeout);          [ -z "$NET_FIN_K" ] && NET_FIN_K=0
+NET_BUF_K=$(rd /proc/sys/net/core/rmem_max);                 [ -z "$NET_BUF_K" ] && NET_BUF_K=0
+NET_BUF_K=$((NET_BUF_K / 1048576))
+NET_ICW_K=$(grep '^initcwnd=' /data/adb/star-fluency/net_state 2>/dev/null | cut -d= -f2)
+[ -z "$NET_ICW_K" ] && NET_ICW_K=0
+eval "$(awk -F= '$1=="NET_SS"{print "NET_SS_S="($2+0)} $1=="NET_MTU"{print "NET_MTU_S="($2+0)} $1=="NET_TW"{print "NET_TW_S="($2+0)} $1=="NET_NL"{print "NET_NL_S="($2+0)} $1=="NET_FIN"{print "NET_FIN_S="($2+0)} $1=="NET_BUF_MB"{print "NET_BUF_S="($2+0)} $1=="NET_INITCWND"{print "NET_ICW_S="($2+0)}' /data/adb/star-fluency/config.conf 2>/dev/null)"
+[ -z "$NET_SS_S" ] && NET_SS_S=0
+[ -z "$NET_MTU_S" ] && NET_MTU_S=1
+[ -z "$NET_TW_S" ] && NET_TW_S=1
+[ -z "$NET_NL_S" ] && NET_NL_S=131072
+[ -z "$NET_FIN_S" ] && NET_FIN_S=30
+[ -z "$NET_BUF_S" ] && NET_BUF_S=0
+[ -z "$NET_ICW_S" ] && NET_ICW_S=20
+NET_BUF_EFF=$NET_BUF_S
+if [ "$NET_BUF_EFF" = "0" ]; then
+    NET_BUF_EFF=$(grep '^buf_mb=' /data/adb/star-fluency/net_state 2>/dev/null | cut -d= -f2)
+    [ -z "$NET_BUF_EFF" ] && NET_BUF_EFF=$NET_BUF_K
+fi
 AUTO_SC=$(conf_of AUTO_SCENE); [ -z "$AUTO_SC" ] && AUTO_SC=0
 AUTO_TP=$(conf_of AUTO_TEMP); [ -z "$AUTO_TP" ] && AUTO_TP=0
 TEMP_TH=$(conf_of TEMP_THRESHOLD); [ -z "$TEMP_TH" ] && TEMP_TH=42
@@ -170,7 +233,7 @@ cat <<JSONEOF
   "gms":{"services":${GMS_SVC:-0},"slim":${GMS_SLIM:-0}},
   "cam":{"idle_kill":$CAM_IDLE,"running":"$(esc "${CAM_PID:-}")"}
   ,
-  "net":{"type":"$(esc "$NET_TYPE")","vpn":"$(esc "$NET_VPN")","fastopen":"$(esc "${TFO:-}")"},
+  "net":{"type":"$(esc "$NET_TYPE")","phys":"$(esc "$NET_PHYS")","vpn":"$(esc "$NET_VPN")","applied":"$(esc "$NET_APPLIED")","stale":${NET_STALE:-0},"fastopen":"$(esc "${TFO:-}")","params":{"ss":${NET_SS_K:-0},"mtu":${NET_MTU_K:-0},"tw":${NET_TW_K:-0},"nl":${NET_NL_K:-0},"fin":${NET_FIN_K:-0},"buf":${NET_BUF_K:-0},"icw":${NET_ICW_K:-0},"ss_set":${NET_SS_S:-0},"mtu_set":${NET_MTU_S:-1},"tw_set":${NET_TW_S:-1},"nl_set":${NET_NL_S:-131072},"fin_set":${NET_FIN_S:-30},"buf_set":${NET_BUF_S:-0},"icw_set":${NET_ICW_S:-20},"buf_eff":${NET_BUF_EFF:-0}}},
   "auto":{"scene":${AUTO_SC:-0},"temp":${AUTO_TP:-0},"threshold":${TEMP_TH:-42},"cur_temp":${AUTO_T:-0},"warn":${AUTO_W:-0}},
   "whitelist":${WL_CNT:-0},
   "autostart":{"disabled":${AS_CNT:-0}}

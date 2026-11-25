@@ -444,20 +444,57 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
   <div class="card">
     <h3>当前网络 <em id="netTag"></em></h3>
     <div class="row"><span class="k">连接类型</span><span class="v" id="netType">-</span></div>
+    <div class="row"><span class="k">参数按哪个网络应用</span><span class="v" id="netApplied">-</span></div>
     <div class="row"><span class="k">代理 / VPN 接口</span><span class="v" id="netVpn">-</span></div>
     <div class="row"><span class="k">TCP Fast Open</span><span class="v" id="netTfo">-</span></div>
     <div class="hint">开了代理时 TCP 走 tun0，参数会一并作用在代理接口上</div>
   </div>
 
   <div class="card">
-    <h3>已调参数</h3>
-    <div class="row"><span class="k">空闲后重置拥塞窗口</span><span class="v">关闭</span></div>
-    <div class="row"><span class="k">MTU 自动探测</span><span class="v">开启</span></div>
-    <div class="row"><span class="k">未发送数据下限</span><span class="v">128 KB</span></div>
-    <div class="row"><span class="k">连接回收超时</span><span class="v">30 秒</span></div>
-    <div class="row"><span class="k">新连接初始窗口</span><span class="v">20 段</span></div>
-    <div class="row"><span class="k">接收 / 发送缓冲</span><span class="v">按接口区分</span></div>
-    <div class="hint">Wi-Fi 用大缓冲，蜂窝用保守值（弱网下大缓冲反而增加延迟）</div>
+    <h3>参数调整 <em id="netTuneTag"></em></h3>
+    <div class="row">
+      <span class="k">空闲后重置拥塞窗口</span>
+      <label class="sw"><input type="checkbox" id="swNetSS"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">MTU 自动探测</span>
+      <label class="sw"><input type="checkbox" id="swNetMtu"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">快速回收 TIME_WAIT</span>
+      <label class="sw"><input type="checkbox" id="swNetTw"><i></i></label>
+    </div>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">收发缓冲上限</span>
+        <span class="v" id="nvBuf">-</span>
+      </div>
+      <input type="range" id="rgNetBuf" min="0" max="4" step="1" value="0" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
+      <div class="hint" style="margin:4px 0 0">0 = 按档位（平衡 16 MB / 流畅 32 MB）；1–4 = 8 / 16 / 32 / 64 MB</div>
+    </div>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">新连接初始窗口</span>
+        <span class="v" id="nvIcw">-</span>
+      </div>
+      <input type="range" id="rgNetIcw" min="10" max="40" step="1" value="20" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
+    </div>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">未发送数据下限</span>
+        <span class="v" id="nvNl">-</span>
+      </div>
+      <input type="range" id="rgNetNl" min="32" max="512" step="32" value="128" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
+    </div>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">连接回收超时</span>
+        <span class="v" id="nvFin">-</span>
+      </div>
+      <input type="range" id="rgNetFin" min="15" max="120" step="5" value="30" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
+    </div>
+    <div class="hint">右侧是内核真实值（初窗/缓冲取自本次应用记录）。拖动或切换后立即写入并读回校验；initcwnd 超过 30 在丢包链路上会掉速，缓冲超过 32 MB 对手机基本没有收益</div>
+    <button class="btn" onclick="netDefaults()">恢复档位默认</button>
   </div>
 
   <div class="card">
@@ -563,6 +600,67 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <h3>场景规则</h3>
     <div class="row">
       <span class="k">息屏自动省电</span>
+function curProf() {
+  return (STATE && STATE.profile && STATE.profile !== 'stock') ? STATE.profile : 'balance';
+}
+function netReapply(msg) {
+  if (msg) toast(msg);
+  sh('sh ' + MODDIR + '/scripts/net.sh apply ' + curProf(), function (code) {
+    toast(code === 0 ? '网络参数已生效' : '应用失败(' + code + ')');
+    setTimeout(loadStatus, 600);
+  });
+}
+function netSetAndApply(key, val, msg) {
+  sh('sh ' + MODDIR + '/scripts/sched.sh setcfg ' + key + ' ' + val, function () { netReapply(msg); });
+}
+function netTune(p) {
+  if (!p) return;
+  var chk = function (id, v) { var e = document.getElementById(id); if (e && document.activeElement !== e) e.checked = (v == 1); };
+  chk('swNetSS', p.ss_set); chk('swNetMtu', p.mtu_set); chk('swNetTw', p.tw_set);
+  var rg = function (id, v) { var e = document.getElementById(id); if (e && document.activeElement !== e) e.value = v; };
+  var bpos = [0, 8, 16, 32, 64].indexOf(p.buf_set);
+  rg('rgNetBuf', bpos < 0 ? 0 : bpos); rg('rgNetIcw', p.icw_set || 20);
+  rg('rgNetNl', Math.round((p.nl_set || 131072) / 1024));
+  rg('rgNetFin', p.fin_set || 30);
+  var t = function (id, s) { var e = document.getElementById(id); if (e) e.textContent = s; };
+  t('nvBuf', (p.buf || 0) + ' MB');
+  t('nvIcw', (p.icw || 0) + ' 段');
+  t('nvNl', Math.round((p.nl || 0) / 1024) + ' KB');
+  t('nvFin', (p.fin || 0) + ' 秒');
+  var same = (p.ss == p.ss_set) && (p.mtu == p.mtu_set) && (p.tw == p.tw_set) &&
+             (p.fin == p.fin_set) && (p.icw == p.icw_set) &&
+             (Math.round((p.nl || 0) / 1024) == Math.round((p.nl_set || 0) / 1024)) &&
+             (p.buf == p.buf_eff);
+  var tg = document.getElementById('netTuneTag');
+  if (tg) tg.innerHTML = same ? '<span class="tag ok">已生效</span>' : '<span class="tag no">未生效</span>';
+}
+function netDefaults() {
+  sh('sh ' + MODDIR + '/scripts/net.sh defaults ' + curProf(), function (code) {
+    toast(code === 0 ? '已恢复档位默认' : '失败');
+    setTimeout(loadStatus, 700);
+  });
+}
+['swNetSS:NET_SS', 'swNetMtu:NET_MTU', 'swNetTw:NET_TW'].forEach(function (m) {
+  var a = m.split(':'), el = document.getElementById(a[0]);
+  if (!el) return;
+  el.addEventListener('change', function () {
+    netSetAndApply(a[1], this.checked ? 1 : 0, this.checked ? '已开启，应用中…' : '已关闭，应用中…');
+  });
+});
+(function () {
+  var BUFV = [0, 8, 16, 32, 64];
+  var b = document.getElementById('rgNetBuf');
+  if (b) b.addEventListener('change', function () {
+    var mb = BUFV[parseInt(this.value, 10)] || 0;
+    netSetAndApply('NET_BUF_MB', mb, mb ? ('缓冲 → ' + mb + ' MB') : '缓冲 → 按档位');
+  });
+  var ci = document.getElementById('rgNetIcw');
+  if (ci) ci.addEventListener('change', function () { netSetAndApply('NET_INITCWND', this.value, '初始窗口 → ' + this.value + ' 段'); });
+  var nl = document.getElementById('rgNetNl');
+  if (nl) nl.addEventListener('change', function () { netSetAndApply('NET_NL', this.value * 1024, '未发送下限 → ' + this.value + ' KB'); });
+  var fn = document.getElementById('rgNetFin');
+  if (fn) fn.addEventListener('change', function () { netSetAndApply('NET_FIN', this.value, '回收超时 → ' + this.value + ' 秒'); });
+})();
       <label class="sw"><input type="checkbox" id="swScreenSave"><i></i></label>
     </div>
     <div class="row">
@@ -915,10 +1013,23 @@ function renderExtra() {
   var n = s.net || {};
   var nt = document.getElementById('netType');
   if (nt) {
-    nt.textContent = (n.type === 'wifi') ? 'Wi-Fi' : ((n.type === 'mobile') ? '移动数据' : (n.type || '-'));
-    document.getElementById('netVpn').textContent = n.vpn ? n.vpn : '无';
+    var tmap = {wifi:'Wi-Fi', mobile:'移动数据', cellular:'移动数据', none:'无网络', unknown:'检测中'};
+    var tlabel = tmap[n.type] || (n.type || '-');
+    nt.textContent = n.phys ? (tlabel + ' · ' + n.phys) : tlabel;
+    var nap = document.getElementById('netApplied');
+    if (nap) {
+      var amap = {wifi:'Wi-Fi', mobile:'移动数据', cellular:'移动数据'};
+      var applied = (n.applied && n.applied !== 'unknown') ? (amap[n.applied] || n.applied) : '未应用';
+      nap.innerHTML = applied + ((n.stale == 1)
+        ? ' <span class="tag no">需重新应用</span>'
+        : ' <span class="tag ok">与当前一致</span>');
+    }
+    document.getElementById('netVpn').textContent = (n.vpn && n.vpn !== 'none') ? n.vpn : '无';
     document.getElementById('netTfo').textContent = (n.fastopen == 3) ? '3（服务端 + 客户端）' : (n.fastopen || '-');
-    document.getElementById('netTag').innerHTML = '<span class="tag ok">已优化</span>';
+    document.getElementById('netTag').innerHTML = (n.stale == 1)
+      ? '<span class="tag no">参数未按当前网络</span>'
+      : '<span class="tag ok">已优化</span>';
+    netTune(n.params);
   }
 
   var wl = document.getElementById('wlTag');
