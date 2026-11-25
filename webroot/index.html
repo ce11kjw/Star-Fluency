@@ -479,13 +479,19 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
       <span class="k">充电自动提档（性能）</span>
       <label class="sw"><input type="checkbox" id="swChgBoost"><i></i></label>
     </div>
-    <div class="row">
-      <span class="k">温度回退阈值</span>
-      <span class="v" id="sdTempLimit">42 °C</span>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">电池温度阈值</span>
+        <span class="v" id="sdTempLimit">42 °C</span>
+      </div>
+      <input type="range" id="rgTemp" min="35" max="50" step="1" value="42" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
     </div>
-    <div class="row">
-      <span class="k">核心温度阈值</span>
-      <span class="v" id="sdCoreLimit">68 °C</span>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">核心温度阈值</span>
+        <span class="v" id="sdCoreLimit">68 °C</span>
+      </div>
+      <input type="range" id="rgCore" min="55" max="80" step="1" value="68" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
     </div>
     <div class="hint">电池温度达到阈值自动降到省电档，回落自动恢复。888 机型建议 42-45°C</div>
   </div>
@@ -1231,16 +1237,33 @@ document.getElementById('swChgBoost').addEventListener('change', function () {
   });
 });
 
-document.getElementById('sdTempLimit').addEventListener('click', function () {
-  var seq = ['40', '42', '45', '48'];
-  var cur = SD.TEMP_LIMIT || '42';
-  var nx = seq[(seq.indexOf(cur) + 1) % seq.length];
-  SD.TEMP_LIMIT = nx;
-  this.textContent = nx + ' °C';
-  sh('sh ' + MODDIR + '/scripts/sched.sh setcfg SCHED_TEMP_LIMIT ' + nx, function () {
-    toast('温度阈值 ' + nx + ' °C');
+/* 温度阈值：滑动条 */
+function sdBindRange(id, key, labelId) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', function () {
+    var l = document.getElementById(labelId);
+    if (l) l.textContent = this.value + ' °C';
   });
-});
+  el.addEventListener('change', function () {
+    var v = this.value;
+    sh('sh ' + MODDIR + '/scripts/sched.sh setcfg ' + key + ' ' + v, function () {
+      toast('已设为 ' + v + ' °C');
+      setTimeout(sdLoad, 500);
+    });
+  });
+}
+sdBindRange('rgTemp', 'SCHED_TEMP_LIMIT', 'sdTempLimit');
+sdBindRange('rgCore', 'SCHED_CORE_TEMP_LIMIT', 'sdCoreLimit');
+
+var _sdR5 = sdRender;
+sdRender = function () {
+  _sdR5();
+  var a = document.getElementById('rgTemp');
+  var b = document.getElementById('rgCore');
+  if (a && document.activeElement !== a) a.value = SD.TEMP_LIMIT || '42';
+  if (b && document.activeElement !== b) b.value = SD.core_limit || '68';
+};
 
 document.querySelectorAll('.tab').forEach(function (t) {
   t.addEventListener('click', function () { if (t.dataset.p === 'sched') setTimeout(sdLoad, 60); });
@@ -1272,16 +1295,6 @@ sdRender = function () {
   var e = document.getElementById('sdCoreLimit');
   if (e) e.textContent = (SD.core_limit || '68') + ' °C';
 };
-document.getElementById('sdCoreLimit').addEventListener('click', function () {
-  var seq = ['62', '65', '68', '72'];
-  var cur = SD.core_limit || '68';
-  var nx = seq[(seq.indexOf(cur) + 1) % seq.length];
-  SD.core_limit = nx;
-  this.textContent = nx + ' °C';
-  sh('sh ' + MODDIR + '/scripts/sched.sh setcfg SCHED_CORE_TEMP_LIMIT ' + nx, function () {
-    toast('核心温度阈值 ' + nx + ' °C');
-  });
-});
 
 /* 让位态显示 + 接管开关 */
 var _sdRender3 = sdRender;
