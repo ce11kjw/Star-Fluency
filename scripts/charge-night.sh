@@ -124,6 +124,16 @@ case "$1" in
   temp-on)  setk CHARGE_TEMP_ON 1; echo "温度限流：开（≥${T1}°C→${T1MA}mA，≥${T2}°C→${T2MA}mA，≥${T3}°C→${T3MA}mA，迟滞 ${HYST}°C）" ;;
   temp-off) setk CHARGE_TEMP_ON 0; echo "温度限流：关" ;;
   limit-on)  setk CHARGE_LIMIT_ON 1; echo "充电上限：开（充到 ${LPCT}% 停，降到 $((LPCT - GAP))% 续）" ;;
+  bypass-on)
+    setk CHARGE_BYPASS 1
+    echo "充电旁路：开（插电时停充，改为直供）"
+    ;;
+  bypass-off)
+    setk CHARGE_BYPASS 0
+    echo 0 > "$SUSP" 2>/dev/null
+    clearflag bypass
+    echo "充电旁路：关"
+    ;;
   limit-off)
     setk CHARGE_LIMIT_ON 0
     echo 0 > "$SUSP" 2>/dev/null
@@ -149,6 +159,14 @@ case "$1" in
             log "拔电，已解除充电暂停"
         fi
         echo 0 > "$SUSP" 2>/dev/null
+    elif [ "$BYPASS" = "1" ]; then
+        # 旁路：插电就停充，不自动续（拔电才解除）
+        if [ "$ONLINE" = "1" ] && ! paused; then
+            echo 1 > "$SUSP" 2>/dev/null
+            setflag paused 1
+            setflag bypass 1
+            log "充电旁路：已停充（插电直供）"
+        fi
     elif [ "$LIMIT_ON" = "1" ]; then
         if [ "$CAP" -ge "$LPCT" ] && ! paused; then
             echo 1 > "$SUSP" 2>/dev/null
@@ -190,6 +208,7 @@ case "$1" in
     echo "limit_enabled=$LIMIT_ON"
     echo "limit_pct=$LPCT"
     echo "limit_resume=$((LPCT - GAP))"
+    echo "bypass_enabled=$(conf CHARGE_BYPASS)"
     echo "limit_paused=$(paused && echo 1 || echo 0)"
     echo "capacity=${CAP:-0}"
     echo "usb_online=${ONLINE:-0}"
