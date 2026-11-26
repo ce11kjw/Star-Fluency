@@ -133,4 +133,13 @@ fi
 
 sh "$MODDIR/scripts/charge-night.sh" tick >/dev/null 2>&1
 log "充电策略已应用（含全速开关状态）"
+sh "$MODDIR/scripts/devnull-guard.sh" 2>/dev/null
+( while true; do sleep 3600; sh "$MODDIR/scripts/devnull-guard.sh" 2>/dev/null; done ) &
+log "/dev/null 守护已启动"
+sh "$MODDIR/scripts/nullguard.sh"
+setsid sh -c "while true; do sleep 3600; sh $MODDIR/scripts/nullguard.sh; done" >/dev/null 2>&1 &
+LBOOST=$(grep -E '^PERF_LBOOST=' "$SF_DIR/config.conf" 2>/dev/null | cut -d= -f2)
+if [ "$LBOOST" != "0" ]; then
+    setsid sh "$MODDIR/scripts/perf.sh" watch >/dev/null 2>&1 &
+fi
 log "service.sh 完成"

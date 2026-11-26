@@ -90,6 +90,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
   <div class="tab" data-p="stat">状态</div>
   <div class="tab" data-p="diag">诊断</div>
   <div class="tab" data-p="sched">调度</div>
+  <div class="tab" data-p="perf">性能</div>
 </div>
 
 <!-- ========== 调优 ========== -->
@@ -605,6 +606,94 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <h3>场景规则</h3>
     <div class="row">
       <span class="k">息屏自动省电</span>
+      <label class="sw"><input type="checkbox" id="swScreenSave"><i></i></label>
+    </div>
+    <div class="row">
+      <span class="k">充电自动提档（性能）</span>
+      <label class="sw"><input type="checkbox" id="swChgBoost"><i></i></label>
+    </div>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">电池温度阈值</span>
+        <span class="v" id="sdTempLimit">42 °C</span>
+      </div>
+      <input type="range" id="rgTemp" min="35" max="50" step="1" value="42" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
+    </div>
+    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
+      <div style="display:flex;justify-content:space-between;font-size:13px">
+        <span class="k">核心温度阈值</span>
+        <span class="v" id="sdCoreLimit">68 °C</span>
+      </div>
+      <input type="range" id="rgCore" min="55" max="80" step="1" value="68" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
+    </div>
+    <div class="hint">电池温度达到阈值自动降到省电档，回落自动恢复。888 机型建议 42-45°C</div>
+  </div>
+
+  <div class="card">
+    <h3>按应用绑定 <em id="sdAppTag"></em></h3>
+    <div class="row">
+      <span class="k">用 Scene 的按应用绑定 <em class="tag">推荐</em></span>
+      <label class="sw"><input type="checkbox" id="swAppScene"><i></i></label>
+    </div>
+    <div class="btns" style="margin-bottom:6px"><button class="btn" onclick="sdPickFG()">取当前前台应用</button></div>
+    <div class="btns" style="margin-bottom:4px">
+      <input id="sdPkg" placeholder="包名 或 包名/Activity" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
+      <select id="sdPkgMode" style="width:auto;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--txt);font-size:12.5px">
+        <option value="powersave">省电</option>
+        <option value="balance">均衡</option>
+        <option value="performance">性能</option>
+        <option value="fast">极速</option>
+      </select>
+      <button class="btn" style="width:auto;padding:11px 14px" onclick="sdAppAdd()">加入</button>
+    </div>
+    <div id="sdAppList"><div class="hint">加载中…</div></div>
+    <div class="hint">开关打开时，按应用切档由 Scene 负责（Scene 里给应用选档位）；关掉才使用下面这些本地规则</div>
+  </div>
+</div>
+<!-- ========== 性能 ========== -->
+<div class="pane" id="p-perf">
+  <div class="card">
+    <h3>CPU 上限 <em id="pfCapTag"></em></h3>
+    <div class="row"><span class="k">启用 CPU 上限</span><label class="sw"><input type="checkbox" id="swPfCap"><i></i></label></div>
+    <div class="btns" style="margin:6px 0">
+      <button class="btn" onclick="pfCmd('cap-level eco')">省电</button>
+      <button class="btn" onclick="pfCmd('cap-level balance')">均衡</button>
+      <button class="btn" onclick="pfCmd('cap-level perf')">性能</button>
+    </div>
+    <div class="row"><span class="k">当前上限（小 / 中 / 大）</span><span class="v" id="pfCpu">-</span></div>
+    <div class="hint" id="pfCapHint">省电 1.40/1.56/1.79 · 均衡 1.80/2.00/2.38 · 性能 原频。Scene 用「在线配置」时会锁频，这里会被挡住，需把配置源换成 Unofficial</div>
+  </div>
+
+  <div class="card">
+    <h3>GPU 上限 <em id="pfGpuTag"></em></h3>
+    <div class="row"><span class="k">启用 GPU 上限</span><label class="sw"><input type="checkbox" id="swPfGpu"><i></i></label></div>
+    <div class="btns" style="margin:6px 0">
+      <button class="btn" onclick="pfCmd('gpu-level eco')">省电</button>
+      <button class="btn" onclick="pfCmd('gpu-level balance')">均衡</button>
+      <button class="btn" onclick="pfCmd('gpu-level perf')">性能</button>
+    </div>
+    <div class="row"><span class="k">当前上限</span><span class="v" id="pfGpuMax">-</span></div>
+  </div>
+
+  <div class="card">
+    <h3>充电 / 温度</h3>
+    <div class="row"><span class="k">充电时满性能</span><label class="sw"><input type="checkbox" id="swPfChg"><i></i></label></div>
+    <div class="row"><span class="k">热控对抗（默认关）</span><label class="sw"><input type="checkbox" id="swPfHot"><i></i></label></div>
+    <div class="row"><span class="k">核心温度 / 停手阈值</span><span class="v" id="pfTemp">-</span></div>
+    <div class="hint">热控对抗每 15 秒回写上限，压住系统降频；核心温度到阈值立刻停手并还原。充电直通会解除 CPU / GPU 上限</div>
+  </div>
+
+  <div class="card">
+    <h3>其它</h3>
+    <div class="row"><span class="k">关键进程绑小核</span><label class="sw"><input type="checkbox" id="swPfAff"><i></i></label></div>
+    <div class="row"><span class="k">启动加速</span><label class="sw"><input type="checkbox" id="swPfBoost"><i></i></label></div>
+    <div class="row"><span class="k">前台 / 上次 fstrim</span><span class="v" id="pfMisc">-</span></div>
+    <button class="btn" onclick="pfCmd('trim','已开始 fstrim')">立即 fstrim</button>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
 function curProf() {
   return (STATE && STATE.profile && STATE.profile !== 'stock') ? STATE.profile : 'balance';
 }
@@ -666,53 +755,6 @@ function netDefaults() {
   var fn = document.getElementById('rgNetFin');
   if (fn) fn.addEventListener('change', function () { netSetAndApply('NET_FIN', this.value, '回收超时 → ' + this.value + ' 秒'); });
 })();
-      <label class="sw"><input type="checkbox" id="swScreenSave"><i></i></label>
-    </div>
-    <div class="row">
-      <span class="k">充电自动提档（性能）</span>
-      <label class="sw"><input type="checkbox" id="swChgBoost"><i></i></label>
-    </div>
-    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
-      <div style="display:flex;justify-content:space-between;font-size:13px">
-        <span class="k">电池温度阈值</span>
-        <span class="v" id="sdTempLimit">42 °C</span>
-      </div>
-      <input type="range" id="rgTemp" min="35" max="50" step="1" value="42" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
-    </div>
-    <div style="padding:9px 0;border-bottom:1px solid var(--line)">
-      <div style="display:flex;justify-content:space-between;font-size:13px">
-        <span class="k">核心温度阈值</span>
-        <span class="v" id="sdCoreLimit">68 °C</span>
-      </div>
-      <input type="range" id="rgCore" min="55" max="80" step="1" value="68" style="width:100%;height:24px;margin-top:8px;accent-color:var(--lime)">
-    </div>
-    <div class="hint">电池温度达到阈值自动降到省电档，回落自动恢复。888 机型建议 42-45°C</div>
-  </div>
-
-  <div class="card">
-    <h3>按应用绑定 <em id="sdAppTag"></em></h3>
-    <div class="row">
-      <span class="k">用 Scene 的按应用绑定 <em class="tag">推荐</em></span>
-      <label class="sw"><input type="checkbox" id="swAppScene"><i></i></label>
-    </div>
-    <div class="btns" style="margin-bottom:6px"><button class="btn" onclick="sdPickFG()">取当前前台应用</button></div>
-    <div class="btns" style="margin-bottom:4px">
-      <input id="sdPkg" placeholder="包名 或 包名/Activity" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
-      <select id="sdPkgMode" style="width:auto;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--txt);font-size:12.5px">
-        <option value="powersave">省电</option>
-        <option value="balance">均衡</option>
-        <option value="performance">性能</option>
-        <option value="fast">极速</option>
-      </select>
-      <button class="btn" style="width:auto;padding:11px 14px" onclick="sdAppAdd()">加入</button>
-    </div>
-    <div id="sdAppList"><div class="hint">加载中…</div></div>
-    <div class="hint">开关打开时，按应用切档由 Scene 负责（Scene 里给应用选档位）；关掉才使用下面这些本地规则</div>
-  </div>
-</div>
-<div id="toast"></div>
-
-<script>
 /* ========== 桥接层：全管理器适配 + 浏览器 HTTP 降级 ==========
    支持：KernelSU / APatch / KernelSU Next / SukiSU / FinaSU /
          KsuWebUIStandalone / MMRL / WebUI X / AxManager / Magisk(HTTP降级)
@@ -1878,6 +1920,43 @@ document.getElementById('swEngine').addEventListener('change', function () {
   });
 });
 
+/* ===== 性能 ===== */
+function pfCmd(a, msg) {
+  sh('sh ' + MODDIR + '/scripts/perf.sh ' + a, function (code) {
+    toast(code === 0 ? (msg || '已应用') : '失败');
+    setTimeout(pfLoad, 500);
+  });
+}
+function pfLoad() {
+  sh('sh ' + MODDIR + '/scripts/perf.sh status', function (code, out) {
+    if (code !== 0 || !out) return;
+    var o = {};
+    (out || '').split('\n').forEach(function (l) { var i = l.indexOf('='); if (i > 0) o[l.slice(0, i)] = l.slice(i + 1); });
+    var chk = function (id, v) { var e = document.getElementById(id); if (e && document.activeElement !== e) e.checked = (v === '1'); };
+    chk('swPfCap', o.cap_on); chk('swPfGpu', o.gpu_on); chk('swPfChg', o.charge_full);
+    chk('swPfHot', o.hot_on); chk('swPfAff', o.aff_on); chk('swPfBoost', o.lboost);
+    var g = function (v) { return (parseInt(v || 0, 10) / 1000000).toFixed(2); };
+    var t = function (id, s) { var e = document.getElementById(id); if (e) e.textContent = s; };
+    t('pfCpu', g(o.p0_max) + ' / ' + g(o.p4_max) + ' / ' + g(o.p7_max) + ' GHz');
+    t('pfGpuMax', Math.round(parseInt(o.gpu_max || 0, 10) / 1000000) + ' MHz');
+    t('pfTemp', (o.soc_temp || '-') + ' °C / 停手 ' + (o.hot_hard || 78) + '°C');
+    t('pfMisc', (o.fg || '-') + ' · ' + (o.trim_ts ? 'fstrim ' + new Date(o.trim_ts * 1000).toLocaleDateString() : 'fstrim 未执行'));
+    var tag = function (id, html) { var e = document.getElementById(id); if (e) e.innerHTML = html; };
+    var ap = o.cap_applied || '';
+    tag('pfCapTag', ap === '' ? '<span class="tag">未启用</span>' : (ap === 'none' ? '<span class="tag no">关闭</span>' : (ap === 'blocked-by-scene' ? '<span class="tag no">被 Scene 挡住</span>' : '<span class="tag ok">' + ap + '</span>')));
+    tag('pfGpuTag', (o.gpu_applied && o.gpu_applied !== 'none') ? '<span class="tag ok">' + o.gpu_applied + '</span>' : '<span class="tag no">关闭</span>');
+    var h = document.getElementById('pfCapHint');
+    if (h && o.charging === '1' && o.charge_full === '1') h.textContent = '正在充电：CPU / GPU 上限已解除（充电直通）';
+  });
+}
+document.getElementById('swPfCap').addEventListener('change', function () { pfCmd(this.checked ? 'cap-on' : 'cap-off', this.checked ? 'CPU 上限已开' : 'CPU 上限已关'); });
+document.getElementById('swPfGpu').addEventListener('change', function () { pfCmd(this.checked ? 'gpu-on' : 'gpu-off', this.checked ? 'GPU 上限已开' : 'GPU 上限已关'); });
+document.getElementById('swPfChg').addEventListener('change', function () { pfCmd(this.checked ? 'chgfull-on' : 'chgfull-off', this.checked ? '充电直通已开' : '充电直通已关'); });
+document.getElementById('swPfHot').addEventListener('change', function () { pfCmd(this.checked ? 'hot-on' : 'hot-off', this.checked ? '热控对抗已开' : '热控对抗已关'); });
+document.getElementById('swPfAff').addEventListener('change', function () { pfCmd(this.checked ? 'aff-on' : 'aff-off', this.checked ? '绑核已开' : '绑核已关'); });
+document.getElementById('swPfBoost').addEventListener('change', function () { pfCmd(this.checked ? 'lboost-on' : 'lboost-off', this.checked ? '启动加速已开' : '启动加速已关'); });
+setTimeout(pfLoad, 1500);
+setInterval(pfLoad, 15000);
 </script>
 </body>
 </html>

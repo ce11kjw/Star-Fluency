@@ -1,7 +1,7 @@
 id=star_fluency
 name=Star-Fluency 流畅优化
-version=v1.3.10
-versionCode=140
+version=v1.3.11
+versionCode=141
 author=aplm
 description=小米11 Ultra(star) 系统流畅度调优 + 动图修复。两档可切（平衡/流畅），支持热更新，全部可一键还原。
 updateJson=https://raw.githubusercontent.com/ce11kjw/Star-Fluency/main/update.json
