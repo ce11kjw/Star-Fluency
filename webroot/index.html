@@ -1908,7 +1908,7 @@ function pfLoad() {
     chk('swPfAff', o.aff_on); chk('swPfBoost', o.lboost);
     var g = function (v) { return (parseInt(v || 0, 10) / 1000000).toFixed(2); };
     var t = function (id, s) { var e = document.getElementById(id); if (e) e.textContent = s; };
-    t('pfTemp', (o.soc_temp || '-') + ' °C / 停手 ' + (o.hot_hard || 78) + '°C');
+    t('pfTemp', (o.soc_temp || '-') + ' °C');
     t('pfMisc', (o.fg || '-') + ' · ' + (o.trim_ts ? 'fstrim ' + new Date(o.trim_ts * 1000).toLocaleDateString() : 'fstrim 未执行'));
     var tag = function (id, html) { var e = document.getElementById(id); if (e) e.innerHTML = html; };
   });
