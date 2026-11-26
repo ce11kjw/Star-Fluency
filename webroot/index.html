@@ -216,6 +216,14 @@ body.glass-flat #glass-canvas{display:none}
 <!-- ========== 调优 ========== -->
 <div class="pane on" id="p-tune">
   <div class="card g">
+    <h3>外观 <em id="glassTag"></em></h3>
+    <div class="row">
+      <span class="k">液态玻璃（WebGL）</span>
+      <label class="sw"><input type="checkbox" id="swGlass"><i></i></label>
+    </div>
+    <div class="hint">默认关闭。开启后卡片有真实折射效果，代价是持续的 GPU 合成开销（更费电、可能掉帧）；关闭时只用 CSS 模糊，静态零开销</div>
+  </div>
+  <div class="card g">
     <h3>CPU / 电池实时 <em id="hpTag"></em></h3>
     <div class="grid">
       <div class="stat">
@@ -2637,17 +2645,51 @@ void main(){
 </script>
 <script>
 (function () {
-  try {
-    var gl = null;
-    try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
-    document.documentElement.dataset.renderer = gl ? 'webgl' : 'css';
-    if (!gl || !window.NovaGlass) { document.body.classList.add('glass-flat'); return; }
-    if (NovaGlass.scan) NovaGlass.scan();
-    if (NovaGlass.setTheme) NovaGlass.setTheme('dark');
-  } catch (e) {
-    document.body.classList.add('glass-flat');
+  var KEY = 'sf_glass';
+  function pref() { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } }
+  function apply(on) {
+    try {
+      if (!on) {
+        document.body.classList.add('glass-flat');
+        document.documentElement.dataset.renderer = 'css';
+        return;
+      }
+      var gl = null;
+      try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
+      if (!gl || !window.NovaGlass) {
+        document.body.classList.add('glass-flat');
+        document.documentElement.dataset.renderer = 'css';
+        return;
+      }
+      document.body.classList.remove('glass-flat');
+      document.documentElement.dataset.renderer = 'webgl';
+      if (NovaGlass.scan) NovaGlass.scan();
+      if (NovaGlass.setTheme) NovaGlass.setTheme('dark');
+    } catch (e) {
+      document.body.classList.add('glass-flat');
+    }
   }
+  window.sfGlassSet = function (on) {
+    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
+    apply(on);
+  };
+  window.sfGlassGet = pref;
+  apply(pref());
 })();
+var _swG = document.getElementById('swGlass');
+if (_swG) {
+  var _gOn = !!(window.sfGlassGet && window.sfGlassGet());
+  _swG.checked = _gOn;
+  var _gt = document.getElementById('glassTag');
+  if (_gt) _gt.innerHTML = _gOn ? '<span class="tag ok">已开启</span>' : '<span class="tag">关闭</span>';
+  _swG.addEventListener('change', function () {
+    var on = this.checked;
+    if (window.sfGlassSet) window.sfGlassSet(on);
+    var t = document.getElementById('glassTag');
+    if (t) t.innerHTML = on ? '<span class="tag ok">已开启</span>' : '<span class="tag">关闭</span>';
+    toast(on ? '液态玻璃已开（更费电）' : '液态玻璃已关');
+  });
+}
 </script>
 </body>
 </html>
