@@ -191,12 +191,21 @@ body.glass-flat #glass-canvas{display:none}
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
 }
+body.glass-flat .card{background:rgba(28,34,44,.88);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:0 8px 24px rgba(0,0,0,.22)}
+body.glass-flat .tab,body.glass-flat .btn,body.glass-flat #toast{backdrop-filter:none;-webkit-backdrop-filter:none}
+body.glass-flat .tab{background:rgba(28,34,44,.88)}
+@media (prefers-color-scheme: light){
+  body.glass-flat .card{background:rgba(255,255,255,.92)}
+  body.glass-flat .tab{background:rgba(255,255,255,.92)}
+}
+body.glass-blur .card{background:var(--card)}
 </style>
 </head>
 <body>
 <div id="app-scene">
 <canvas id="glass-canvas"></canvas>
 <main id="main">
+<div id="rebootBanner" style="display:none;margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:rgba(255,69,58,.16);border:1px solid rgba(255,69,58,.45);color:#ff6b61;font-size:12.5px;line-height:1.6">⚠️ /dev/null 被重建过，WebView 要重启手机才能恢复（重启后本提示自动消失）</div>
 
 <div class="hdr">
   <h1>Star <span>Fluency</span></h1>
@@ -217,11 +226,12 @@ body.glass-flat #glass-canvas{display:none}
 <div class="pane on" id="p-tune">
   <div class="card g">
     <h3>外观 <em id="glassTag"></em></h3>
-    <div class="row">
-      <span class="k">液态玻璃（WebGL）</span>
-      <label class="sw"><input type="checkbox" id="swGlass"><i></i></label>
+    <div class="seg">
+      <button id="gbOff" onclick="sfGlassSetLevel(0)">关</button>
+      <button id="gbBlur" onclick="sfGlassSetLevel(1)">模糊</button>
+      <button id="gbLiquid" onclick="sfGlassSetLevel(2)">液态</button>
     </div>
-    <div class="hint">默认关闭。开启后卡片有真实折射效果，代价是持续的 GPU 合成开销（更费电、可能掉帧）；关闭时只用 CSS 模糊，静态零开销</div>
+    <div class="hint">关 = 零 GPU 开销（默认）；模糊 = CSS 背景模糊，只在滚动/重绘时有开销；液态 = WebGL 折射，持续开销最大、可能掉帧</div>
   </div>
   <div class="card g">
     <h3>CPU / 电池实时 <em id="hpTag"></em></h3>
@@ -248,7 +258,6 @@ body.glass-flat #glass-canvas{display:none}
   </div>
 
   <div class="card g">
-    <h3>性能档位 <em id="curProfile">读取中</em></h3>
     <h3>性能档位 <em id="curProfile">读取中</em></h3>
     <div class="seg">
       <button data-prof="balance" id="btnBalance">平衡</button>
@@ -2645,51 +2654,56 @@ void main(){
 </script>
 <script>
 (function () {
-  var KEY = 'sf_glass';
-  function pref() { try { return localStorage.getItem(KEY) === '1'; } catch (e) { return false; } }
-  function apply(on) {
+  var KEY = 'sfg2';
+  function lvl() {
+    try { var v = localStorage.getItem(KEY); return v === null ? 0 : (parseInt(v, 10) || 0); } catch (e) { return 0; }
+  }
+  function apply(n) {
+    var b = document.body;
+    b.classList.remove('glass-flat', 'glass-blur', 'glass-liquid');
+    document.documentElement.dataset.renderer = 'css';
+    if (n === 0) { b.classList.add('glass-flat'); return; }
+    if (n === 1) { b.classList.add('glass-blur'); return; }
+    var gl = null;
+    try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
+    if (!gl || !window.NovaGlass) { b.classList.add('glass-blur'); return; }
+    b.classList.add('glass-liquid');
+    document.documentElement.dataset.renderer = 'webgl';
     try {
-      if (!on) {
-        document.body.classList.add('glass-flat');
-        document.documentElement.dataset.renderer = 'css';
-        return;
-      }
-      var gl = null;
-      try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
-      if (!gl || !window.NovaGlass) {
-        document.body.classList.add('glass-flat');
-        document.documentElement.dataset.renderer = 'css';
-        return;
-      }
-      document.body.classList.remove('glass-flat');
-      document.documentElement.dataset.renderer = 'webgl';
       if (NovaGlass.scan) NovaGlass.scan();
       if (NovaGlass.setTheme) NovaGlass.setTheme('dark');
-    } catch (e) {
-      document.body.classList.add('glass-flat');
+    } catch (e) { b.classList.remove('glass-liquid'); b.classList.add('glass-blur'); }
+  }
+  function paint(n) {
+    var tag = document.getElementById('glassTag');
+    if (tag) tag.innerHTML = (n === 0)
+      ? '<span class="tag">关闭</span>'
+      : '<span class="tag ok">' + (n === 1 ? '模糊' : '液态') + '</span>';
+    var ids = ['gbOff', 'gbBlur', 'gbLiquid'];
+    for (var i = 0; i < ids.length; i++) {
+      var el = document.getElementById(ids[i]);
+      if (el) el.className = (i === n) ? 'on' : '';
     }
   }
-  window.sfGlassSet = function (on) {
-    try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) {}
-    apply(on);
+  window.sfGlassSetLevel = function (n) {
+    try { localStorage.setItem(KEY, String(n)); } catch (e) {}
+    apply(n); paint(n);
+    toast(n === 0 ? '已关闭玻璃效果（零开销）' : (n === 1 ? '已切到模糊（滚动时才有开销）' : '已切到液态玻璃（持续开销最大）'));
   };
-  window.sfGlassGet = pref;
-  apply(pref());
+  window.sfGlassGetLevel = lvl;
+  var n0 = lvl();
+  apply(n0); paint(n0);
 })();
-var _swG = document.getElementById('swGlass');
-if (_swG) {
-  var _gOn = !!(window.sfGlassGet && window.sfGlassGet());
-  _swG.checked = _gOn;
-  var _gt = document.getElementById('glassTag');
-  if (_gt) _gt.innerHTML = _gOn ? '<span class="tag ok">已开启</span>' : '<span class="tag">关闭</span>';
-  _swG.addEventListener('change', function () {
-    var on = this.checked;
-    if (window.sfGlassSet) window.sfGlassSet(on);
-    var t = document.getElementById('glassTag');
-    if (t) t.innerHTML = on ? '<span class="tag ok">已开启</span>' : '<span class="tag">关闭</span>';
-    toast(on ? '液态玻璃已开（更费电）' : '液态玻璃已关');
-  });
-}
+(function () {
+  function chk() {
+    sh('test -f /data/adb/star-fluency/NEED_REBOOT && echo 1 || echo 0', function (c, out) {
+      var b = document.getElementById('rebootBanner');
+      if (b) b.style.display = ((out || '').replace(/\s/g, '') === '1') ? 'block' : 'none';
+    });
+  }
+  chk();
+  setInterval(chk, 60000);
+})();
 </script>
 </body>
 </html>

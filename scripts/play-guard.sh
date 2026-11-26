@@ -25,7 +25,7 @@ if [ -n "$PIDS" ]; then
         [ -n "$R" ] && TOTAL=$(( TOTAL + R ))
     done
     # 用 am force-stop 比 kill 更彻底（会清任务栈）
-    su -c "am force-stop $PLAY" 2>/dev/null || pkill -f "$PLAY" 2>/dev/null
+    su -c "am force-stop $PLAY" >/dev/null 2>&1
     N=$(cat "$KILLED" 2>/dev/null || echo 0)
     echo $(( N + 1 )) > "$KILLED"
     log "压制 Play 商店 (${TOTAL}KB, 累计 $(( N + 1 )) 次)"
