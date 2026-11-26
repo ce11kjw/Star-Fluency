@@ -664,16 +664,6 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint" id="pfCapHint">省电 1.40/1.56/1.79 · 均衡 1.80/2.00/2.38 · 性能 原频。Scene 用「在线配置」时会锁频，这里会被挡住，需把配置源换成 Unofficial</div>
   </div>
 
-  <div class="card">
-    <h3>GPU 上限 <em id="pfGpuTag"></em></h3>
-    <div class="row"><span class="k">启用 GPU 上限</span><label class="sw"><input type="checkbox" id="swPfGpu"><i></i></label></div>
-    <div class="btns" style="margin:6px 0">
-      <button class="btn" onclick="pfCmd('gpu-level eco')">省电</button>
-      <button class="btn" onclick="pfCmd('gpu-level balance')">均衡</button>
-      <button class="btn" onclick="pfCmd('gpu-level perf')">性能</button>
-    </div>
-    <div class="row"><span class="k">当前上限</span><span class="v" id="pfGpuMax">-</span></div>
-  </div>
 
   <div class="card">
     <h3>充电 / 温度</h3>
@@ -1933,24 +1923,20 @@ function pfLoad() {
     var o = {};
     (out || '').split('\n').forEach(function (l) { var i = l.indexOf('='); if (i > 0) o[l.slice(0, i)] = l.slice(i + 1); });
     var chk = function (id, v) { var e = document.getElementById(id); if (e && document.activeElement !== e) e.checked = (v === '1'); };
-    chk('swPfCap', o.cap_on); chk('swPfGpu', o.gpu_on); chk('swPfChg', o.charge_full);
     chk('swPfHot', o.hot_on); chk('swPfAff', o.aff_on); chk('swPfBoost', o.lboost);
     var g = function (v) { return (parseInt(v || 0, 10) / 1000000).toFixed(2); };
     var t = function (id, s) { var e = document.getElementById(id); if (e) e.textContent = s; };
     t('pfCpu', g(o.p0_max) + ' / ' + g(o.p4_max) + ' / ' + g(o.p7_max) + ' GHz');
-    t('pfGpuMax', Math.round(parseInt(o.gpu_max || 0, 10) / 1000000) + ' MHz');
     t('pfTemp', (o.soc_temp || '-') + ' °C / 停手 ' + (o.hot_hard || 78) + '°C');
     t('pfMisc', (o.fg || '-') + ' · ' + (o.trim_ts ? 'fstrim ' + new Date(o.trim_ts * 1000).toLocaleDateString() : 'fstrim 未执行'));
     var tag = function (id, html) { var e = document.getElementById(id); if (e) e.innerHTML = html; };
     var ap = o.cap_applied || '';
     tag('pfCapTag', ap === '' ? '<span class="tag">未启用</span>' : (ap === 'none' ? '<span class="tag no">关闭</span>' : (ap === 'blocked-by-scene' ? '<span class="tag no">被 Scene 挡住</span>' : '<span class="tag ok">' + ap + '</span>')));
-    tag('pfGpuTag', (o.gpu_applied && o.gpu_applied !== 'none') ? '<span class="tag ok">' + o.gpu_applied + '</span>' : '<span class="tag no">关闭</span>');
     var h = document.getElementById('pfCapHint');
     if (h && o.charging === '1' && o.charge_full === '1') h.textContent = '正在充电：CPU / GPU 上限已解除（充电直通）';
   });
 }
 document.getElementById('swPfCap').addEventListener('change', function () { pfCmd(this.checked ? 'cap-on' : 'cap-off', this.checked ? 'CPU 上限已开' : 'CPU 上限已关'); });
-document.getElementById('swPfGpu').addEventListener('change', function () { pfCmd(this.checked ? 'gpu-on' : 'gpu-off', this.checked ? 'GPU 上限已开' : 'GPU 上限已关'); });
 document.getElementById('swPfChg').addEventListener('change', function () { pfCmd(this.checked ? 'chgfull-on' : 'chgfull-off', this.checked ? '充电直通已开' : '充电直通已关'); });
 document.getElementById('swPfHot').addEventListener('change', function () { pfCmd(this.checked ? 'hot-on' : 'hot-off', this.checked ? '热控对抗已开' : '热控对抗已关'); });
 document.getElementById('swPfAff').addEventListener('change', function () { pfCmd(this.checked ? 'aff-on' : 'aff-off', this.checked ? '绑核已开' : '绑核已关'); });
