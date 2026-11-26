@@ -805,7 +805,7 @@ function netReapply(msg) {
   if (msg) toast(msg);
   sh('sh ' + MODDIR + '/scripts/net.sh apply ' + curProf(), function (code) {
     toast(code === 0 ? '网络参数已生效' : '应用失败(' + code + ')');
-    setTimeout(loadStatus, 600);
+    sfRefresh();
   });
 }
 function netSetAndApply(key, val, msg) {
@@ -835,7 +835,7 @@ function netTune(p) {
 function netDefaults() {
   sh('sh ' + MODDIR + '/scripts/net.sh defaults ' + curProf(), function (code) {
     toast(code === 0 ? '已恢复档位默认' : '失败');
-    setTimeout(loadStatus, 700);
+    sfRefresh();
   });
 }
 ['swNetSS:NET_SS', 'swNetMtu:NET_MTU', 'swNetTw:NET_TW'].forEach(function (m) {
@@ -1002,6 +1002,31 @@ function loadStatus() {
     try { STATE = JSON.parse(out); render(); } catch(e) { console.log('parse fail', e, out); }
   });
 }
+function sfQuick() {
+  sh('sh ' + MODDIR + '/scripts/switch-state.sh', function (code, out) {
+    if (code !== 0 || !out || !STATE) return;
+    var o = {};
+    (out || '').split('\n').forEach(function (l) { var i = l.indexOf('='); if (i > 0) o[l.slice(0, i)] = l.slice(i + 1); });
+    STATE.trim = STATE.trim || {};
+    STATE.trim.pa = o.pa; STATE.trim.gms = o.gms; STATE.trim.play = o.play;
+    STATE.trim.market = o.market; STATE.trim.content = o.content;
+    STATE.trim.anim = o.anim; STATE.trim.cached = parseInt(o.cached || 0, 10);
+    STATE.cam = STATE.cam || {}; STATE.cam.idle_kill = o.cam;
+    STATE.appbrand = STATE.appbrand || {}; STATE.appbrand.idle_on = o.ab;
+    STATE.motion = STATE.motion || {}; STATE.motion.auto = o.auto;
+    STATE.auto = STATE.auto || {}; STATE.auto.scene = o.scene; STATE.auto.temp = o.temp;
+    STATE.gms = STATE.gms || {}; STATE.gms.slim = o.gms_slim;
+    try { render(); } catch (e) {}
+  });
+}
+function sfRefresh(delay) {
+  setTimeout(function () {
+    sh('rm -f /data/adb/star-fluency/swstate.cache /data/adb/star-fluency/status.cache', function () {
+      sfQuick();
+      setTimeout(loadStatus, 600);
+    });
+  }, delay || 100);
+}
 
 function fmtFreq(khz) {
   if (!khz) return '-';
@@ -1109,7 +1134,7 @@ function applyProfile(p) {
   toast('应用中…');
   sh('sh ' + MODDIR + '/scripts/apply.sh ' + p, function(code, out, err) {
     toast(code === 0 ? '已应用' : '失败');
-    setTimeout(loadStatus, 800);
+    sfRefresh();
   });
 }
 
@@ -1117,7 +1142,7 @@ function motionAct(act) {
   toast('执行中…');
   sh('sh ' + MODDIR + '/scripts/motion.sh ' + act, function(code, out) {
     toast(out.trim().slice(0, 40) || (code === 0 ? '完成' : '失败'));
-    setTimeout(loadStatus, 800);
+    sfRefresh();
   });
 }
 
@@ -1221,14 +1246,14 @@ function wlAdd() {
   sh('sh ' + MODDIR + '/scripts/whitelist.sh add ' + p, function (code, out) {
     toast(code === 0 ? '已加入白名单' : ('失败：' + ((out || '').trim() || '未知')));
     wlLoad();
-    setTimeout(loadStatus, 500);
+    sfRefresh();
   });
 }
 function wlDel(p) {
   sh('sh ' + MODDIR + '/scripts/whitelist.sh del ' + p, function () {
     toast('已移出白名单');
     wlLoad();
-    setTimeout(loadStatus, 500);
+    sfRefresh();
   });
 }
 
@@ -1258,14 +1283,14 @@ function bootDisable() {
   sh('sh ' + MODDIR + '/scripts/autostart.sh disable ' + p, function (code, out) {
     toast(code === 0 ? '已禁止开机自启' : ('失败：' + ((out || '').trim() || '未知')));
     bootLoad();
-    setTimeout(loadStatus, 500);
+    sfRefresh();
   });
 }
 function bootEnable(p) {
   sh('sh ' + MODDIR + '/scripts/autostart.sh enable ' + p, function () {
     toast('已恢复自启');
     bootLoad();
-    setTimeout(loadStatus, 500);
+    sfRefresh();
   });
 }
 
@@ -1274,14 +1299,14 @@ function netApply() {
   var p = (STATE.profile && STATE.profile !== 'stock') ? STATE.profile : 'balance';
   sh('sh ' + MODDIR + '/scripts/net.sh apply ' + p, function (code) {
     toast(code === 0 ? '网络参数已应用' : '失败');
-    setTimeout(loadStatus, 600);
+    sfRefresh();
   });
 }
 function netRevert() {
   toast('恢复中…');
   sh('sh ' + MODDIR + '/scripts/net.sh revert', function (code) {
     toast(code === 0 ? '已恢复网络原厂值' : '失败');
-    setTimeout(loadStatus, 600);
+    sfRefresh();
   });
 }
 
@@ -1345,14 +1370,14 @@ document.getElementById('swScene').addEventListener('change', function () {
   var v = this.checked ? 1 : 0;
   setConf('AUTO_SCENE', v, function () {
     toast(v ? '场景自动切换已开启' : '场景自动切换已关闭');
-    setTimeout(loadStatus, 500);
+    sfRefresh();
   });
 });
 document.getElementById('swTemp').addEventListener('change', function () {
   var v = this.checked ? 1 : 0;
   setConf('AUTO_TEMP', v, function () {
     toast(v ? '温度降级已开启' : '温度降级已关闭');
-    setTimeout(loadStatus, 500);
+    sfRefresh();
   });
 });
 
@@ -1375,7 +1400,7 @@ function bindTrim(id, key) {
       var upd = key === 'anim' ? '' : 'CF=/data/adb/star-fluency/config.conf; ' +
         'K=' + key.toUpperCase() + '; V=' + (el.checked ? 1 : 0) + '; ' +
         'touch $CF; if grep -q "^TRIM_$K=" $CF; then sed -i "s|^TRIM_$K=.*|TRIM_$K=$V|" $CF; else echo "TRIM_$K=$V" >> $CF; fi';
-      sh(upd || 'true', function() { toast(el.checked ? '已开启' : '已关闭'); });
+      sh(upd || 'true', function() { toast(el.checked ? '已开启' : '已关闭'); sfRefresh(); });
     });
   });
 }
@@ -1419,7 +1444,7 @@ function bindTrim2(id, key) {
          'if grep -q "^TRIM_' + K + '=" $CF; then sed -i "s|^TRIM_' + K + '=.*|TRIM_' + K + '=' + V + '|" $CF; ' +
          'else echo "TRIM_' + K + '=' + V + '" >> $CF; fi', function() {
         toast(el.checked ? '已开启' : '已关闭');
-        setTimeout(loadStatus, 800);
+        sfRefresh();
       });
     });
   });
@@ -1432,7 +1457,7 @@ document.getElementById('swAb').addEventListener('change', function() {
      'if grep -q "^APPBRAND_IDLE=" $CF; then sed -i "s|^APPBRAND_IDLE=.*|APPBRAND_IDLE=' + v + '|" $CF; ' +
      'else echo "APPBRAND_IDLE=' + v + '" >> $CF; fi', function() {
     toast(v ? '小程序清理已开启' : '已关闭');
-    setTimeout(loadStatus, 600);
+    sfRefresh();
   });
 });
 
@@ -1769,7 +1794,7 @@ if (_rgProc) {
     var v = this.value;
     sh('settings put global activity_manager_constants max_cached_processes=' + v, function () {
       toast('缓存进程上限 ' + v);
-      setTimeout(loadStatus, 600);
+      sfRefresh();
     });
   });
 }

@@ -87,7 +87,7 @@ case "$1" in
   lboost-off) setk PERF_LBOOST 0; echo "启动加速 → 关" ;;
   watch)
     while true; do
-        sleep 1.5
+        sleep 3
         [ "$(rd $USB/online)" = "1" ] && continue
         F=$(fg_pkg)
         [ -z "$F" ] && continue

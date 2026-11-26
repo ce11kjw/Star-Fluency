@@ -52,6 +52,11 @@ while true; do
     sh "$MODDIR/scripts/charge-night.sh" tick >/dev/null 2>&1
     sh "$MODDIR/scripts/perf.sh" tick >/dev/null 2>&1
     sh "$MODDIR/scripts/nullguard.sh" >/dev/null 2>&1
+    # 日志轮转：超过 200KB 只留最后 500 行
+    if [ -f "$LOG" ]; then
+        SZ=$(stat -c %s "$LOG" 2>/dev/null); [ -z "$SZ" ] && SZ=0
+        [ "$SZ" -gt 204800 ] && { tail -n 500 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"; }
+    fi
 
     [ "$(conf SCHED_ENABLED)" = "0" ] && continue
 
