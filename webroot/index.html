@@ -6,76 +6,197 @@
 <meta name="theme-color" content="#0a0e14">
 <title>Star-Fluency</title>
 <style>
+/* ===== Star-Fluency · 玻璃设计系统 =====
+   视觉语言参考 NovaSched Zen Edition 的规格（配色/模糊/圆角/缓动），
+   CSS 全部自写；液态玻璃由 Apache-2.0 的 kyant-backdrop WebGL 适配层提供。 */
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 :root{
-  --bg:#0a0e14; --card:#141a24; --card2:#1b2330; --line:#232c3a;
-  --txt:#e8edf4; --dim:#7d8899; --lime:#c6f24e; --cyan:#4ee0f2;
-  --red:#f25b5b; --amber:#f2b84e;
+  /* 主题令牌 */
+  --accent:#0a84ff; --accent-press:#006fd6; --accent-soft:rgba(10,132,255,.24);
+  --bg:#0d1015; --bg2:#0a0e14;
+  --card:rgba(24,30,40,.55); --card2:rgba(38,46,60,.55);
+  --line:rgba(255,255,255,.12);
+  --txt:#eef2f7; --dim:rgba(238,242,247,.62); --faint:rgba(238,242,247,.42);
+  --ok:#30d158; --warn:#ff9f0a; --red:#ff453a;
+  /* 兼容旧变量名（JS 内联样式里用到 --lime / --cyan） */
+  --lime:var(--accent); --cyan:#4ee0f2; --amber:var(--warn);
+  --r-card:18px; --r-btn:14px; --r-pill:999px;
+  --blur:24px;
+  --ease-out:cubic-bezier(.32,.72,0,1); --dur:420ms; --fast:240ms;
+  --pad:16px;
+  --safe-t:env(safe-area-inset-top,0px); --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-l:env(safe-area-inset-left,0px); --safe-r:env(safe-area-inset-right,0px);
 }
-body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;
-     padding:0 0 24px;min-height:100vh}
-.hdr{padding:18px 16px 14px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#121a26,var(--bg))}
-.hdr h1{font-size:19px;font-weight:700;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
-.hdr h1 span{color:var(--lime)}
-.hdr p{font-size:11.5px;color:var(--dim);margin-top:3px}
-.tabs{display:flex;gap:6px;padding:12px 16px 0;overflow-x:auto;scrollbar-width:none}
+@media (prefers-color-scheme: light){
+  :root{
+    --bg:#eef2f8; --bg2:#e7ecf4;
+    --card:rgba(255,255,255,.62); --card2:rgba(255,255,255,.78);
+    --line:rgba(17,17,17,.12);
+    --txt:#111820; --dim:rgba(17,24,32,.66); --faint:rgba(17,24,32,.44);
+    --ok:#248b40; --warn:#a56300; --red:#d62d23;
+  }
+}
+body{
+  background:
+    radial-gradient(1200px 700px at 15% -10%, rgba(10,132,255,.20), transparent 60%),
+    radial-gradient(900px 600px at 100% 0%, rgba(78,224,242,.14), transparent 55%),
+    linear-gradient(180deg, var(--bg), var(--bg2));
+  background-attachment:fixed;
+  color:var(--txt);
+  font:14px/1.55 -apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif;
+  padding:0 0 calc(28px + var(--safe-b));
+  min-height:100vh;
+  -webkit-font-smoothing:antialiased;
+}
+#app-scene{position:relative;min-height:100vh}
+#glass-canvas{position:fixed;inset:0;width:100%;height:100%;display:block;z-index:0;pointer-events:none}
+#main{position:relative;z-index:1;padding-top:var(--safe-t)}
+
+/* 顶栏 */
+.hdr{
+  padding:20px var(--pad) 14px;
+  border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), transparent);
+  backdrop-filter:blur(18px) saturate(1.3);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3);
+  position:sticky;top:0;z-index:20;
+}
+.hdr h1{font-size:20px;font-weight:700;letter-spacing:.2px;display:flex;align-items:center;gap:8px}
+.hdr h1 span{color:var(--accent)}
+.hdr p{font-size:11.5px;color:var(--dim);margin-top:4px}
+
+/* 页签：胶囊分段 */
+.tabs{display:flex;gap:8px;padding:12px var(--pad) 2px;overflow-x:auto;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tab{flex:0 0 auto;padding:8px 15px;border-radius:9px;background:var(--card);border:1px solid var(--line);
-     font-size:13px;color:var(--dim);cursor:pointer;transition:.15s;white-space:nowrap}
-.tab.on{background:var(--lime);color:#0a0e14;border-color:var(--lime);font-weight:600}
-.pane{display:none;padding:14px 16px 0}
+.tab{
+  flex:0 0 auto;padding:9px 16px;border-radius:var(--r-pill);
+  background:var(--card);border:1px solid var(--line);color:var(--dim);
+  font-size:13px;cursor:pointer;white-space:nowrap;
+  backdrop-filter:blur(var(--blur)) saturate(1.4);-webkit-backdrop-filter:blur(var(--blur)) saturate(1.4);
+  transition:transform var(--fast) var(--ease-out),background var(--fast) var(--ease-out),color var(--fast) var(--ease-out);
+}
+.tab:active{transform:scale(.96)}
+.tab.on{background:var(--accent);color:#fff;border-color:transparent;font-weight:600;box-shadow:0 6px 18px rgba(10,132,255,.35)}
+
+/* 面板 */
+.pane{display:none;padding:14px var(--pad) 0;animation:fade var(--dur) var(--ease-out)}
 .pane.on{display:block}
-.card{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:14px;margin-bottom:11px}
-.card h3{font-size:13.5px;font-weight:600;margin-bottom:11px;display:flex;align-items:center;justify-content:space-between}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* 玻璃卡片 */
+.card{
+  background:var(--card);
+  border:1px solid var(--line);
+  border-radius:var(--r-card);
+  padding:16px;
+  margin-bottom:12px;
+  backdrop-filter:blur(var(--blur)) saturate(1.5);
+  -webkit-backdrop-filter:blur(var(--blur)) saturate(1.5);
+  box-shadow:0 10px 30px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.06);
+  transition:transform var(--dur) var(--ease-out),background var(--fast) var(--ease-out);
+}
+@media (prefers-color-scheme: light){
+  .card{box-shadow:0 10px 26px rgba(16,32,52,.10), inset 0 1px 0 rgba(255,255,255,.7)}
+}
+.card h3{font-size:13.5px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:8px}
 .card h3 em{font-style:normal;font-size:11px;color:var(--dim);font-weight:400}
-.seg{display:flex;gap:7px;margin-bottom:4px}
-.seg button{flex:1;padding:12px 6px;border-radius:10px;border:1px solid var(--line);background:var(--card2);
-            color:var(--dim);font-size:13px;cursor:pointer;transition:.15s;font-family:inherit}
-.seg button.on{background:var(--lime);border-color:var(--lime);color:#0a0e14;font-weight:700}
+
+/* 分段按钮 */
+.seg{display:flex;gap:8px;margin-bottom:4px}
+.seg button{
+  flex:1;padding:12px 6px;border-radius:var(--r-btn);border:1px solid var(--line);
+  background:var(--card2);color:var(--dim);font-size:13px;cursor:pointer;font-family:inherit;
+  transition:transform var(--fast) var(--ease-out),background var(--fast) var(--ease-out);
+}
+.seg button.on{background:var(--accent);border-color:transparent;color:#fff;font-weight:700}
 .seg button:active{transform:scale(.97)}
-.row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+
+/* 行 */
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
 .row:last-child{border-bottom:0}
 .row .k{color:var(--dim)}
-.row .v{color:var(--txt);font-family:ui-monospace,monospace;font-size:12.5px}
-.row .v.diff{color:var(--lime)}
+.row .v{color:var(--txt);font-family:ui-monospace,SFMono-Regular,monospace;font-size:12.5px;text-align:right}
+.row .v.diff{color:var(--accent)}
 .row .v.same{color:var(--dim)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
-.stat{background:var(--card2);border-radius:10px;padding:11px 12px}
-.stat .lbl{font-size:11px;color:var(--dim);margin-bottom:3px}
-.stat .num{font-size:19px;font-weight:700;font-family:ui-monospace,monospace;letter-spacing:-.5px}
+
+/* 数值卡 */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.stat{background:var(--card2);border:1px solid var(--line);border-radius:14px;padding:12px}
+.stat .lbl{font-size:11px;color:var(--dim);margin-bottom:4px}
+.stat .num{font-size:20px;font-weight:700;font-family:ui-monospace,monospace;letter-spacing:-.4px}
 .stat .num small{font-size:11px;font-weight:400;color:var(--dim);margin-left:2px}
 .stat .sub{font-size:10.5px;color:var(--dim);margin-top:2px}
-.bar{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:7px}
-.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--lime));border-radius:3px;transition:width .4s}
-.sw{position:relative;width:46px;height:27px;flex:0 0 auto}
+
+/* 进度条 */
+.bar{height:6px;background:var(--line);border-radius:var(--r-pill);overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--accent));border-radius:var(--r-pill);transition:width var(--dur) var(--ease-out)}
+
+/* 开关 */
+.sw{position:relative;width:48px;height:28px;flex:0 0 auto}
 .sw input{opacity:0;width:0;height:0;position:absolute}
-.sw i{position:absolute;inset:0;background:var(--line);border-radius:15px;cursor:pointer;transition:.2s}
-.sw i:before{content:"";position:absolute;width:21px;height:21px;left:3px;top:3px;background:#8a94a6;border-radius:50%;transition:.2s}
-.sw input:checked+i{background:var(--lime)}
-.sw input:checked+i:before{transform:translateX(19px);background:#0a0e14}
-.btn{padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--card2);color:var(--txt);
-     font-size:13px;cursor:pointer;font-family:inherit;width:100%;transition:.15s}
+.sw i{position:absolute;inset:0;background:rgba(120,130,145,.45);border-radius:var(--r-pill);cursor:pointer;transition:background var(--fast) var(--ease-out)}
+.sw i:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:transform var(--fast) var(--ease-out);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sw input:checked+i{background:var(--accent)}
+.sw input:checked+i:before{transform:translateX(20px)}
+
+/* 按钮 */
+.btn{
+  padding:12px;border-radius:var(--r-btn);border:1px solid var(--line);
+  background:var(--card2);color:var(--txt);font-size:13px;cursor:pointer;font-family:inherit;width:100%;
+  transition:transform var(--fast) var(--ease-out),background var(--fast) var(--ease-out);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+}
 .btn:active{transform:scale(.98)}
-.btn.pri{background:var(--lime);color:#0a0e14;border-color:var(--lime);font-weight:600}
-.btn.warn{color:var(--amber);border-color:#3a3020}
-.btn.danger{color:var(--red);border-color:#3a2020}
+.btn.pri{background:var(--accent);color:#fff;border-color:transparent;font-weight:600;box-shadow:0 8px 20px rgba(10,132,255,.28)}
+.btn.warn{color:var(--warn);border-color:rgba(255,159,10,.35)}
+.btn.danger{color:var(--red);border-color:rgba(255,69,58,.35)}
 .btns{display:flex;gap:8px}
-.log{background:#070a0e;border:1px solid var(--line);border-radius:9px;padding:10px;
-     font:11px/1.6 ui-monospace,monospace;color:#8fa3b8;max-height:340px;overflow-y:auto;white-space:pre-wrap;word-break:break-all}
-.hint{font-size:11.5px;color:var(--dim);line-height:1.6;margin-top:9px}
-.tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:5px;background:#1f2836;color:var(--dim);margin-left:6px}
-.tag.ok{background:#1a2a1a;color:#7dd87d}
-.tag.no{background:#2a1a1a;color:#d87d7d}
-#toast{position:fixed;left:50%;bottom:34px;transform:translateX(-50%) translateY(70px);background:var(--lime);
-       color:#0a0e14;padding:10px 20px;border-radius:22px;font-size:13px;font-weight:600;opacity:0;
-       transition:.25s;pointer-events:none;z-index:99;max-width:86%;text-align:center}
+
+/* 日志 */
+.log{
+  background:rgba(0,0,0,.30);border:1px solid var(--line);border-radius:14px;padding:12px;
+  font:11px/1.65 ui-monospace,monospace;color:var(--dim);
+  max-height:340px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;
+}
+@media (prefers-color-scheme: light){ .log{background:rgba(255,255,255,.72)} }
+
+/* 说明 / 标签 */
+.hint{font-size:11.5px;color:var(--dim);line-height:1.65;margin-top:10px}
+.tag{display:inline-block;font-size:10px;padding:3px 8px;border-radius:var(--r-pill);background:rgba(255,255,255,.10);color:var(--dim);margin-left:6px;border:1px solid var(--line)}
+.tag.ok{background:rgba(48,209,88,.16);color:var(--ok);border-color:rgba(48,209,88,.3)}
+.tag.no{background:rgba(255,69,58,.16);color:var(--red);border-color:rgba(255,69,58,.3)}
+
+/* 提示 */
+#toast{
+  position:fixed;left:50%;bottom:calc(36px + var(--safe-b));transform:translateX(-50%) translateY(80px);
+  background:rgba(20,26,36,.86);color:var(--txt);border:1px solid var(--line);
+  padding:11px 20px;border-radius:var(--r-pill);font-size:13px;font-weight:600;opacity:0;
+  transition:transform var(--dur) var(--ease-out),opacity var(--dur) var(--ease-out);
+  pointer-events:none;z-index:99;max-width:86%;text-align:center;
+  backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);
+  box-shadow:0 12px 30px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: light){ #toast{background:rgba(255,255,255,.88);box-shadow:0 12px 30px rgba(16,32,52,.18)} }
 #toast.on{transform:translateX(-50%) translateY(0);opacity:1}
-.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--lime);
+
+/* 加载圈 */
+.spin{display:inline-block;width:11px;height:11px;border:2px solid var(--line);border-top-color:var(--accent);
       border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px;margin-right:5px}
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* 液态玻璃接管后：卡片背景交给 canvas，CSS 只留描边与文字 */
+body.glass-ready .card.g{background:rgba(255,255,255,.03);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+body.glass-flat #glass-canvas{display:none}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
 </style>
 </head>
 <body>
+<div id="app-scene">
+<canvas id="glass-canvas"></canvas>
+<main id="main">
 
 <div class="hdr">
   <h1>Star <span>Fluency</span></h1>
@@ -94,7 +215,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
 <!-- ========== 调优 ========== -->
 <div class="pane on" id="p-tune">
-  <div class="card">
+  <div class="card g">
     <h3>CPU / 电池实时 <em id="hpTag"></em></h3>
     <div class="grid">
       <div class="stat">
@@ -118,7 +239,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">健康度优先用实测值（跨 25% 放电区段的库仑计差分），没有样本时退回系统单点值；内阻趋势相对首次记录</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>性能档位 <em id="curProfile">读取中</em></h3>
     <h3>性能档位 <em id="curProfile">读取中</em></h3>
     <div class="seg">
@@ -128,18 +249,18 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">平衡：省电为主，日常够用<br>流畅：内存与 IO 拉高，滑动手感优先</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>参数对照 <em>当前 / 原厂</em></h3>
     <div id="paramList"></div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>恢复</h3>
     <button class="btn warn" onclick="applyProfile('stock')">恢复全部原厂设置</button>
     <div class="hint">点了之后所有参数回到出厂值，档位不再是平衡/流畅</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>场景自动切换 <em id="sceneTag"></em></h3>
     <div class="row">
       <span class="k">充电时自动切到流畅档</span>
@@ -152,7 +273,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">拔电后回到你手动选的档位。温度降级优先于场景切换，两者不会互相打架</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>温度感知降级 <em id="tempTag"></em></h3>
     <div class="row">
       <span class="k">电池过热自动降为平衡档</span>
@@ -172,7 +293,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
 <!-- ========== 动图 ========== -->
 <div class="pane" id="p-motion">
-  <div class="card">
+  <div class="card g">
     <h3>自动修复 <em id="motionAutoTag"></em></h3>
     <div class="row">
       <span class="k">开机自动监视</span>
@@ -189,7 +310,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">开启后每 3 分钟检查一次相机残留的微视频，自动合成进 JPG</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>手动操作</h3>
     <div class="btns">
       <button class="btn pri" onclick="motionAct('run')">立即修复一次</button>
@@ -198,7 +319,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">「立即修复」会扫描 pending 目录并合成，可重复点</div>
   </div>
 
-  <div class="card" id="mLogCard" style="display:none">
+  <div class="card g" id="mLogCard" style="display:none">
     <h3>修复日志</h3>
     <div class="log" id="mLog">加载中…</div>
   </div>
@@ -206,7 +327,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
 <!-- ========== 精简 ========== -->
 <div class="pane" id="p-trim">
-  <div class="card">
+  <div class="card g">
     <h3>后台限制</h3>
     <div class="row">
       <span class="k">负一屏<em class="tag">省约 170MB</em></span>
@@ -218,7 +339,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     </div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>Play 商店 <em id="playTag"></em></h3>
     <div class="row">
       <span class="k">关自动更新 + 后台压制<em class="tag">省约 500MB</em></span>
@@ -235,7 +356,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">关闭后不会自动更新应用，需要更新时手动打开 Play 商店点更新。你正在用 Play 时不会被干扰</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>系统应用后台</h3>
     <div class="row">
       <span class="k">小米应用商店<em class="tag">省约 140MB</em></span>
@@ -248,7 +369,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">商店限制后不会后台自动下载应用更新，需要时手动打开更新。内容中心是负一屏资讯推送</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>谷歌服务精简 <em id="gmsTag"></em></h3>
     <div class="row">
       <span class="k">关非核心组件<em class="tag">省约 100MB</em></span>
@@ -261,7 +382,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">只关闭附近共享、晕车辅助、个人安全、魔法网络、统计上报等可选功能。<strong>推送、定位、账号登录、Play 商店全部保留</strong></div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>后台进程管理</h3>
     <div class="row">
       <span class="k">缓存进程上限 64<em class="tag">减少内存压力</em></span>
@@ -274,7 +395,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">限制后台缓存的空进程数量，降低内存占用。App 切回时会重新加载</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>微信小程序容器 <em id="abTag"></em></h3>
     <div class="row">
       <span class="k">闲置 30 分钟后清理<em class="tag">省约 400MB</em></span>
@@ -287,7 +408,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">只结束小程序运行时进程，不影响微信本体和聊天记录。再用小程序会重新加载</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>动画速度</h3>
     <div class="row">
       <span class="k">动画缩放 0.5 倍</span>
@@ -296,7 +417,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">把系统动画时长减半，感觉更快。不影响任何功能</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>相机</h3>
     <div class="row">
       <span class="k">闲置自动清理<em class="tag">省约 220MB</em></span>
@@ -309,7 +430,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">前台不是相机且超过 5 分钟后自动结束。AI 引擎（aicr）未做任何改动</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>后台白名单 <em id="wlTag"></em></h3>
     <div class="btns" style="margin-bottom:4px">
       <input id="wlInput" placeholder="com.example.app" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
@@ -319,7 +440,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">白名单里的应用不受上面的后台限制。某个应用收不到通知时，把它的包名加进来就恢复</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>开机自启管理 <em id="bootTag"></em></h3>
     <div class="btns" style="margin-bottom:4px">
       <input id="bootInput" placeholder="com.example.app" style="flex:1;min-width:0;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--txt);font-size:12.5px;font-family:ui-monospace,monospace">
@@ -328,7 +449,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div id="bootList"><div class="hint">加载中…</div></div>
     <div class="hint">只禁用「开机自动启动」的接收器，应用照常能打开、推送不受影响，随时可恢复</div>
   </div>
-  <div class="card">
+  <div class="card g">
     <h3>外放音效 <em id="audioTag"></em></h3>
     <div class="row">
       <span class="k">还原低频 / 去破音</span>
@@ -336,11 +457,11 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     </div>
     <div class="hint">把 77–329Hz 的抬升从 7–10dB 降到 3–5dB，800/1k 少压，Movie 档降强度。原理：11U 外放放不出这段低频，抬满只会变成削顶破音。切换会重载音频栈（约 1 秒静音）</div>
   </div>
-  <div class="card">
+  <div class="card g">
     <h3>说明</h3>
     <div class="hint">音效改动以 bind mount 方式挂到 /vendor/etc/dolby/dax-default.xml，不修改分区文件；原厂文件已备份到 /data/adb/star-fluency/audio/</div>
   </div>
-  <div class="card">
+  <div class="card g">
     <h3>充电限流 <em id="chargeTag"></em></h3>
     <div class="row">
       <span class="k">全速充电（让位所有限流）</span>
@@ -374,7 +495,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="row"><span class="k">上限状态</span><span class="v" id="chargeLimitState">-</span></div>
     <div class="hint">充电上限：充到设定值就暂停（input_suspend），降到「上限−3%」自动续充；拔电必定解除暂停，避免下次插上不充电。温度/夜间限流是压电流，上限是停止充电，两者可同时开</div>
   </div>
-  <div class="card">
+  <div class="card g">
     <h3>其它</h3>
     <div class="row"><span class="k">关键进程绑小核</span><label class="sw"><input type="checkbox" id="swPfAff"><i></i></label></div>
     <div class="row"><span class="k">启动加速</span><label class="sw"><input type="checkbox" id="swPfBoost"><i></i></label></div>
@@ -386,7 +507,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
 <!-- ========== 状态 ========== -->
 <div class="pane" id="p-stat">
-  <div class="card">
+  <div class="card g">
     <h3>内存 <em id="updTime"></em></h3>
     <div class="grid">
       <div class="stat">
@@ -412,13 +533,13 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     </div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>CPU 实时频率</h3>
     <div class="row"><span class="k">小核 ×4</span><span class="v" id="c0">-</span></div>
     <div class="row"><span class="k">中核 ×3</span><span class="v" id="c4">-</span></div>
     <div class="row"><span class="k">大核 ×1</span><span class="v" id="c7">-</span></div>
   </div>
-  <div class="card">
+  <div class="card g">
     <h3>电池曲线 <em id="histTag"></em></h3>
     <div class="btns" style="margin-bottom:9px">
       <button class="btn" onclick="histLoad(24)">24 小时</button>
@@ -427,7 +548,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div id="histBox" class="hint">点上面按钮加载（蓝=电量，橙=温度）</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>内存 <em id="ramTag"></em></h3>
     <div class="grid">
       <div class="stat"><div class="lbl">可用内存</div><div class="num" id="ramAvail">-<small>MB</small></div><div class="bar"><i id="ramBar" style="width:0%"></i></div></div>
@@ -443,7 +564,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">上限越低越省内存、后台重载越多；导出文件在 /sdcard/Download/</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>运行日志</h3>
     <div class="btns" style="margin-bottom:9px">
       <button class="btn" onclick="loadLog()">刷新日志</button>
@@ -454,7 +575,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
 <!-- ========== 网络 ========== -->
 <div class="pane" id="p-net">
-  <div class="card">
+  <div class="card g">
     <h3>当前网络 <em id="netTag"></em></h3>
     <div class="row"><span class="k">连接类型</span><span class="v" id="netType">-</span></div>
     <div class="row"><span class="k">参数按哪个网络应用</span><span class="v" id="netApplied">-</span></div>
@@ -463,7 +584,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">开了代理时 TCP 走 tun0，参数会一并作用在代理接口上</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>参数调整 <em id="netTuneTag"></em></h3>
     <div class="row">
       <span class="k">空闲后重置拥塞窗口</span>
@@ -510,7 +631,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <button class="btn" onclick="netDefaults()">恢复档位默认</button>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>操作</h3>
     <button class="btn pri" onclick="netApply()">按当前档位重新应用</button>
     <div style="height:8px"></div>
@@ -521,7 +642,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
 <!-- ========== 诊断 ========== -->
 <div class="pane" id="p-diag">
-  <div class="card">
+  <div class="card g">
     <h3>为什么卡 <em id="diagTime"></em></h3>
     <button class="btn pri" onclick="diagLoad()">开始诊断</button>
     <div class="grid" style="margin-top:11px">
@@ -535,17 +656,17 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint" id="dJudge">点上面按钮开始诊断</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>占用最高 <em>CPU</em></h3>
     <div id="dTopCpu"><div class="hint">-</div></div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>占用最高 <em>内存</em></h3>
     <div id="dTopMem"><div class="hint">-</div></div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>稳定性</h3>
     <div class="row"><span class="k">ANR 次数（本次开机）</span><span class="v" id="dAnr">-</span></div>
     <div class="row"><span class="k">OOM 杀进程</span><span class="v" id="dOom">-</span></div>
@@ -553,7 +674,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="row"><span class="k">缓存进程数</span><span class="v" id="dProc">-</span></div>
     <div class="hint">ANR 多说明有应用主线程卡住；OOM 多说明内存不够，可以把缓存进程上限再调低</div>
   </div>
-  <div class="card">
+  <div class="card g">
     <h3>调度与温度 <em id="dSchedTag"></em></h3>
     <div class="row"><span class="k">当前档位</span><span class="v" id="dMode">-</span></div>
     <div class="row"><span class="k">触发原因</span><span class="v" id="dReason">-</span></div>
@@ -565,7 +686,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
 <!-- ========== 调度 ========== -->
 <div class="pane" id="p-sched">
-  <div class="card">
+  <div class="card g">
     <h3>当前调度 <em id="schedTag"></em></h3>
     <div class="grid">
       <div class="stat">
@@ -586,7 +707,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="row"><span class="k">CPU 核心温度</span><span class="v" id="sdSocTemp">-</span></div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>档位切换 <em>立即生效</em></h3>
     <div class="seg">
       <button onclick="sdSet('powersave')" id="sdPowersave">省电</button>
@@ -600,7 +721,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">省电=最小下限+保守升频；均衡=日常；性能=升频快、下限抬高；极速=上限拉满（发热明显）</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>Scene 对接 <em id="sdHookTag"></em></h3>
     <div class="row">
       <span class="k">安装为 Scene 外部源</span>
@@ -609,7 +730,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">开启后会生成 <code>/data/powercfg.sh</code>。去 Scene → 性能配置 → 配置源选「外部来源」，之后 Scene 的四个档位、按应用绑定都会直接驱动本模块。<b>关掉才能用 Scene 自带配置。</b></div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>场景规则</h3>
     <div class="row">
       <span class="k">息屏自动省电</span>
@@ -636,7 +757,7 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
     <div class="hint">电池温度达到阈值自动降到省电档，回落自动恢复。888 机型建议 42-45°C</div>
   </div>
 
-  <div class="card">
+  <div class="card g">
     <h3>按应用绑定 <em id="sdAppTag"></em></h3>
     <div class="row">
       <span class="k">用 Scene 的按应用绑定 <em class="tag">推荐</em></span>
@@ -1911,6 +2032,622 @@ document.getElementById('swPfAff').addEventListener('change', function () { pfCm
 document.getElementById('swPfBoost').addEventListener('change', function () { pfCmd(this.checked ? 'lboost-on' : 'lboost-off', this.checked ? '启动加速已开' : '启动加速已关'); });
 setTimeout(pfLoad, 1500);
 setInterval(pfLoad, 15000);
+</script>
+</main>
+</div>
+<script>
+/* ZenJooo. WebGL adapter for Kyant Backdrop's AGSL lens, Apache-2.0.
+ * Native reference: SleepDown beta5, 5ed891bc4563d9a0dd56edb63902bcfaf5d88a2c.
+ * This is a Web renderer; it does not load Android Compose or RuntimeShader.
+ */
+(() => {
+  "use strict";
+  if (window.NovaGlass) return;
+  const background = document.getElementById("glass-canvas");
+  const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)");
+  const stage = document.createElement("canvas");
+  const source = document.createElement("canvas");
+  const scene = document.createElement("canvas");
+  const lensSource = document.createElement("canvas");
+  const textSource = document.createElement("canvas");
+  const textureScratch = document.createElement("canvas");
+  const textContext = textSource.getContext("2d");
+  const textureContext = textureScratch.getContext("2d");
+  const lensContext = lensSource.getContext("2d");
+  const sourceContext = source.getContext("2d");
+  const sceneContext = scene.getContext("2d");
+  const backgroundContext = background?.getContext("2d");
+  const gl = stage.getContext("webgl", { alpha: true, antialias: false, premultipliedAlpha: false, preserveDrawingBuffer: true, powerPreference: "low-power" });
+  let available = !!(gl?.createShader && sourceContext?.drawImage && backgroundContext?.drawImage);
+  let theme = "light", accent = [10 / 255, 132 / 255, 1], image = null;
+  let wall = { blur: 6, brightness: .93, centerX: .5, centerY: .5, scale: 1 };
+  let settings = { level: 50, cardBlur: 24, cardAlpha: 73, cardRadius: 22, chromeBlur: 100, dispersion: true, material: true, colorMode: "colorful", cardColor: "#d6e9ff", palette: ["#64b5f6", "#f48fb1", "#81c784", "#ffd166", "#b39ddb", "#4dd0e1"] };
+  let width = 0, height = 0, ratio = 1, sourceEpoch = 0, sceneEpoch = 0;
+  let sourceDirty = true, sceneDirty = true, textDirty = true;
+  let frame = 0, until = 0, hidden = false, materialRevision = 0, nextSurfaceId = 0;
+  let settingsKey = JSON.stringify(settings);
+  const SAMPLE_PIXELS = 600000;
+  const TEXTURE_BYTES = 24 * 1024 * 1024;
+  const counters = { frames: 0, draws: 0, stageResizes: 0, textureUploads: 0, lensRecords: 0, sceneRecords: 0, textRecords: 0, glyphReads: 0 };
+  let program, buffer;
+  const surfaces = new Map(), textures = new Map();
+  const ACCENTS = { blue: [10 / 255, 132 / 255, 1], indigo: [94 / 255, 92 / 255, 230 / 255], purple: [191 / 255, 90 / 255, 242 / 255], rose: [1, 55 / 255, 95 / 255], amber: [1, 159 / 255, 10 / 255], green: [48 / 255, 209 / 255, 87 / 255] };
+  const vertex = `attribute vec2 position; varying vec2 uv; void main(){uv=position*.5+.5;gl_Position=vec4(position,0.,1.);}`;
+  const fragment = `
+precision highp float;
+varying vec2 uv;
+uniform sampler2D content;
+uniform vec2 screen;
+uniform vec4 rect;
+uniform float radius;
+uniform vec4 material;
+uniform vec4 tint;
+uniform float gradientTint;
+uniform float highlightAlpha;
+float sdRoundedRect(vec2 p, vec2 halfSize, float r){
+  vec2 cornerCoord=abs(p)-(halfSize-vec2(r));
+  return length(max(cornerCoord,0.))-r+min(max(cornerCoord.x,cornerCoord.y),0.);
+}
+vec2 gradSdRoundedRect(vec2 p,vec2 halfSize,float r){
+  vec2 cornerCoord=abs(p)-(halfSize-vec2(r));
+  if(cornerCoord.x>=0.||cornerCoord.y>=0.)return sign(p)*normalize(max(cornerCoord,0.)+vec2(.000001));
+  float gradX=step(cornerCoord.y,cornerCoord.x);
+  return sign(p)*vec2(gradX,1.-gradX);
+}
+float circleMap(float x){return 1.-sqrt(max(0.,1.-x*x));}
+vec4 sampleContent(vec2 p){return texture2D(content,clamp(p/screen,vec2(.00001),vec2(.99999)));}
+vec4 refractContent(vec2 coord,vec2 p,vec2 halfSize,float sd){
+  float refractionHeight=material.x;
+  if(refractionHeight<=0.||-sd>=refractionHeight)return sampleContent(rect.xy+coord);
+  float d=circleMap(1.-clamp(-min(sd,0.)/refractionHeight,0.,1.))*material.y;
+  float gradRadius=min(radius*1.5,min(halfSize.x,halfSize.y));
+  vec2 grad=normalize(gradSdRoundedRect(p,halfSize,gradRadius)+material.z*(p/max(length(p),.00001)));
+  vec2 refractedCoord=rect.xy+coord+d*grad;
+  float dispersionIntensity=material.w*((p.x*p.y)/max(halfSize.x*halfSize.y,.00001));
+  vec2 dispersedCoord=d*grad*dispersionIntensity;
+  if(material.w==0.)return sampleContent(refractedCoord);
+  vec4 color=vec4(0.);
+  vec4 red=sampleContent(refractedCoord+dispersedCoord);
+  color.r+=red.r/3.5; color.a+=red.a/7.;
+  vec4 orange=sampleContent(refractedCoord+dispersedCoord*(2./3.));
+  color.r+=orange.r/3.5; color.g+=orange.g/7.; color.a+=orange.a/7.;
+  vec4 yellow=sampleContent(refractedCoord+dispersedCoord*(1./3.));
+  color.r+=yellow.r/3.5; color.g+=yellow.g/3.5; color.a+=yellow.a/7.;
+  vec4 green=sampleContent(refractedCoord);
+  color.g+=green.g/3.5; color.a+=green.a/7.;
+  vec4 cyan=sampleContent(refractedCoord-dispersedCoord*(1./3.));
+  color.g+=cyan.g/3.5; color.b+=cyan.b/3.; color.a+=cyan.a/7.;
+  vec4 blue=sampleContent(refractedCoord-dispersedCoord*(2./3.));
+  color.b+=blue.b/3.; color.a+=blue.a/7.;
+  vec4 purple=sampleContent(refractedCoord-dispersedCoord);
+  color.r+=purple.r/7.; color.b+=purple.b/3.; color.a+=purple.a/7.;
+  return color;
+}
+void main(){
+  vec2 coord=vec2(uv.x,1.-uv.y)*rect.zw;
+  vec2 halfSize=rect.zw*.5, p=coord-halfSize;
+  float sd=sdRoundedRect(p,halfSize,radius);
+  float coverage=1.-smoothstep(-.75,.5,sd);
+  if(coverage==0.){gl_FragColor=vec4(0.);return;}
+  vec4 c=refractContent(coord,p,halfSize,sd);
+  float alpha=tint.a*(gradientTint>.5?mix(.22,1.,coord.y/max(rect.w,1.)):1.);
+  c.rgb=mix(c.rgb,tint.rgb,alpha);
+  vec2 grad=gradSdRoundedRect(p,halfSize,min(radius*1.5,min(halfSize.x,halfSize.y)));
+  float directional=pow(abs(dot(grad,normalize(vec2(-1.,-1.)))),1.);
+  float rim=(1.-smoothstep(0.,1.2,abs(sd)))*directional*highlightAlpha;
+  c.rgb=mix(c.rgb,vec3(1.),rim);
+  gl_FragColor=vec4(c.rgb,coverage);
+}`;
+  function compile(kind, code) {
+    const shader = gl.createShader(kind);
+    gl.shaderSource(shader, code); gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) { gl.deleteShader(shader); throw new Error("Shader compile failed"); }
+    return shader;
+  }
+  function initialize() {
+    if (!available) return;
+    try {
+      const vs = compile(gl.VERTEX_SHADER, vertex), fs = compile(gl.FRAGMENT_SHADER, fragment);
+      program = gl.createProgram(); gl.attachShader(program, vs); gl.attachShader(program, fs); gl.linkProgram(program);
+      gl.deleteShader(vs); gl.deleteShader(fs);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) throw new Error("Shader link failed");
+      gl.useProgram(program);
+      buffer = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]), gl.STATIC_DRAW);
+      const location = gl.getAttribLocation(program, "position"); gl.enableVertexAttribArray(location); gl.vertexAttribPointer(location, 2, gl.FLOAT, false, 0, 0);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      document.documentElement.dataset.renderer = "webgl-kyant-port";
+    } catch (_) { fallback(); }
+  }
+  function fallback() {
+    available = false;
+    document.body.classList.add("glass-flat");
+    document.documentElement.dataset.renderer = "css-backdrop";
+    if (!backgroundContext?.drawImage && background) background.style.display = "none";
+    until = 0;
+    for (const [element, record] of surfaces) {
+      element.classList.remove("glass-ready");
+      record.canvas.style.display = "none";
+      record.renderKey = "";
+    }
+  }
+  function motionAllowed() {
+    return available && !reduced?.matches && document.documentElement.dataset.motion !== "reduce";
+  }
+  function invalidate(duration = 0) {
+    if (hidden) return;
+    if (motionAllowed()) until = Math.max(until, performance.now() + duration);
+    else until = 0;
+    if (!frame) frame = requestAnimationFrame(paint);
+  }
+  function dimensions() {
+    const nextWidth = Math.max(1, window.innerWidth || 360), nextHeight = Math.max(1, window.innerHeight || 800);
+    if (nextWidth === width && nextHeight === height) return;
+    width = nextWidth; height = nextHeight;
+    ratio = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(1200000 / (width * height)));
+    for (const canvas of [source, scene, lensSource, textSource, background]) { if (!canvas) continue; canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio); }
+    sourceDirty = sceneDirty = textDirty = true;
+  }
+  function wallTransform(w, h) {
+    if (!image) return null;
+    const iw = image.naturalWidth || image.width, ih = image.naturalHeight || image.height;
+    if (!iw || !ih) return null;
+    const scale = Math.max(w / iw, h / ih) * wall.scale;
+    return { x: Math.max(w - iw * scale, Math.min(0, w / 2 - wall.centerX * iw * scale)), y: Math.max(h - ih * scale, Math.min(0, h / 2 - wall.centerY * ih * scale)), w: iw * scale, h: ih * scale };
+  }
+  function drawWallpaper(context, w, h, options = wall) {
+    if (!context?.fillRect) return;
+    context.save(); context.clearRect(0,0,w,h);
+    context.fillStyle = theme === "dark" ? "#121212" : "#f2f4f8"; context.fillRect(0,0,w,h);
+    const transform = wallTransform(w,h);
+    if (transform) {
+      const px = options.blur * .32 * (w / Math.max(1,width));
+      context.filter = `blur(${px}px) brightness(${options.brightness})`;
+      const pad = Math.ceil(px * 3);
+      if (pad) {
+        context.drawImage(image,transform.x-pad,transform.y-pad,transform.w+pad*2,transform.h+pad*2);
+      } else context.drawImage(image,transform.x,transform.y,transform.w,transform.h);
+    }
+    context.restore();
+  }
+  function rebuildSource() {
+    if (!sourceDirty) return;
+    drawWallpaper(sourceContext, source.width, source.height);
+    if (backgroundContext?.drawImage) { backgroundContext.clearRect(0,0,background.width,background.height); backgroundContext.drawImage(source,0,0); }
+    sourceEpoch++; sourceDirty = false; sceneDirty = true;
+    // Existing texture objects are refreshed lazily against the new source epoch.
+  }
+  function parseColor(value) {
+    const match = /^#([\da-f]{6})$/i.exec(value || "");
+    return match ? [parseInt(match[1].slice(0,2),16)/255,parseInt(match[1].slice(2,4),16)/255,parseInt(match[1].slice(4),16)/255] : accent;
+  }
+  function materialFor(element) {
+    const role = element.dataset.role || "pill", dark = theme === "dark";
+    const neutral = dark ? [18/255,18/255,18/255] : [242/255,244/255,248/255];
+    const strength = settings.level === 0 ? 0 : .5 + settings.level / 100;
+    const data = { role, blur: 2.375 * settings.chromeBlur / 100, height: 11.4, amount: 22.8, depth: .1, dispersion: settings.dispersion ? .05 : 0, tint: neutral, alpha: dark ? .45 : .54, highlight: .055, gradient: 0 };
+    if (role === "course") {
+      data.highlight=.045; data.blur = settings.cardBlur; data.height = 10 * strength; data.amount = 20 * strength;
+      data.tint = parseColor(settings.colorMode === "colorful" ? settings.palette[(Number(element.dataset.colorIndex)||0) % settings.palette.length] : settings.cardColor);
+      data.alpha = settings.cardAlpha / 100 * .52;
+      data.gradient = settings.colorMode === "gradient" ? 1 : 0;
+      if (!settings.material) { data.height = data.amount = data.dispersion = 0; data.alpha = Math.max(.35,data.alpha); }
+    } else if (role === "assistant") {
+      data.blur=16; data.height=4; data.amount=8; data.alpha=dark ? .60 : .80;
+    } else if (role === "dock") {
+      data.blur=1.3*settings.chromeBlur/100; data.height=10; data.amount=40; data.depth=0; data.highlight=.07;
+    } else if (role === "lens") {
+      data.blur=0; data.height=12; data.amount=17; data.alpha=.1; data.depth=0; data.highlight=.07;
+    } else if (role === "popup" || role === "panel") {
+      data.blur=8; data.height=12; data.amount=24; data.alpha=role === "popup" ? .15 : .34;
+    } else if (role === "dialog") {
+      data.blur=16; data.height=4; data.amount=8; data.alpha=dark ? .74 : .65;
+    } else if (role === "settings") {
+      data.blur=16; data.height=0; data.amount=0; data.alpha=dark ? .8 : .73;
+    } else if (role === "accent") {
+      data.tint=accent; data.alpha=.58; data.height=12; data.amount=24;
+    }
+    if (settings.level===0) data.height=data.amount=data.dispersion=0;
+    return data;
+  }
+  function scan(root = document) {
+    const found = [...root.querySelectorAll(".g")];
+    if (root instanceof Element && root.matches(".g")) found.unshift(root);
+    for (const element of found) {
+      if (surfaces.has(element)) continue;
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      canvas.className = "glass-surface";
+      canvas.setAttribute("aria-hidden", "true");
+      const context = available ? canvas.getContext("2d") : null;
+      if (available) element.prepend(canvas);
+      surfaces.set(element, {
+        id: ++nextSurfaceId, canvas, context, role: element.dataset.role || "pill",
+        page: element.closest(".page"),
+        portal: element.closest(".appearance-layer,.dialog-layer,.popover-layer"),
+        dock: element.closest(".dock-wrap"),
+        materialKey: "", renderKey: "", serial: 0, rect: null,
+      });
+    }
+    for (const [element, record] of surfaces) {
+      if (element.isConnected) continue;
+      record.canvas.remove();
+      surfaces.delete(element);
+      removeTextures("lens:" + record.id);
+    }
+    invalidate();
+  }
+  function removeTextures(domain) {
+    for (const [key, record] of textures) {
+      if (record.domain !== domain) continue;
+      gl?.deleteTexture?.(record.texture);
+      textures.delete(key);
+    }
+  }
+  function textureBytes() {
+    let total = 0;
+    for (const record of textures.values()) total += record.width * record.height * 4;
+    return total;
+  }
+  function getTexture(base, blur, epoch, domain) {
+    const key = domain + ":" + blur.toFixed(1);
+    let record = textures.get(key);
+    if (record && record.epoch === epoch) {
+      textures.delete(key);
+      textures.set(key, record);
+      return record.texture;
+    }
+    const bitmap = typeof base === "function" ? base() : base;
+    const scale = Math.min(1, Math.sqrt(SAMPLE_PIXELS / (bitmap.width * bitmap.height)));
+    const w = Math.max(1, Math.floor(bitmap.width * scale));
+    const h = Math.max(1, Math.floor(bitmap.height * scale));
+    if (textureScratch.width !== w) textureScratch.width = w;
+    if (textureScratch.height !== h) textureScratch.height = h;
+    textureContext.clearRect(0, 0, w, h);
+    textureContext.filter = blur > 0 ? `blur(${blur * w / width}px)` : "none";
+    textureContext.drawImage(bitmap, 0, 0, bitmap.width, bitmap.height, 0, 0, w, h);
+    textureContext.filter = "none";
+    if (!record) {
+      record = { texture: gl.createTexture(), domain, width: 0, height: 0, epoch: null };
+      gl.bindTexture(gl.TEXTURE_2D, record.texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    } else gl.bindTexture(gl.TEXTURE_2D, record.texture);
+    if (record.width === w && record.height === h) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, textureScratch);
+    } else {
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, textureScratch);
+    }
+    counters.textureUploads++;
+    record.width = w;
+    record.height = h;
+    record.epoch = epoch;
+    textures.delete(key);
+    textures.set(key, record);
+    while (textures.size > 12 || textureBytes() > TEXTURE_BYTES) {
+      const oldest = textures.keys().next().value;
+      if (oldest === key && textures.size === 1) break;
+      gl.deleteTexture(textures.get(oldest).texture);
+      textures.delete(oldest);
+    }
+    return record.texture;
+  }
+  const locationCache = new Map();
+  function uniform(name) { if (!locationCache.has(name)) locationCache.set(name,gl.getUniformLocation(program,name)); return locationCache.get(name); }
+  function releaseSurface(element, record) {
+    record.rect = null;
+    record.renderKey = "";
+    if (record.canvas.width > 1 || record.canvas.height > 1) record.canvas.width = record.canvas.height = 1;
+    if (element.classList.contains("glass-ready")) element.classList.remove("glass-ready");
+  }
+  function measure(element, record) {
+    if (record.page && !record.page.classList.contains("active") ||
+        record.portal && (record.portal.hidden || !record.portal.classList.contains("popover-layer") && !record.portal.classList.contains("open")) ||
+        record.dock?.classList.contains("hidden") || element.closest("[hidden]")) {
+      releaseSurface(element, record);
+      return null;
+    }
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1 || rect.bottom <= 0 || rect.top >= height || rect.right <= 0 || rect.left >= width) {
+      releaseSurface(element, record);
+      return null;
+    }
+    record.rect = rect;
+    return rect;
+  }
+  function ensureStage(w, h) {
+    let resized = false;
+    if (stage.width < w) { stage.width = Math.ceil(w / 64) * 64; resized = true; }
+    if (stage.height < h) { stage.height = Math.ceil(h / 64) * 64; resized = true; }
+    if (resized) counters.stageResizes++;
+  }
+  function drawSurface(element, record, rect, base = source, epoch = sourceEpoch, domain = "wall") {
+    const materialKey = [materialRevision, element.dataset.role, element.dataset.colorIndex, element.dataset.radius, element.dataset.state].join(":");
+    if (record.materialKey !== materialKey) {
+      record.material = materialFor(element);
+      record.materialKey = materialKey;
+      const drawKey = JSON.stringify(record.material);
+      if (record.materialDrawKey !== drawKey) {
+        record.materialDrawKey = drawKey;
+        element.style.setProperty("--role-blur", record.material.blur + "px");
+        element.style.setProperty("--surface-color", `rgba(${record.material.tint.map(x => Math.round(x * 255)).join(",")},${record.material.alpha})`);
+      }
+    }
+    const material = record.material;
+    const radius = material.role === "course" ? Math.min(settings.cardRadius, rect.width / 2, rect.height / 2) :
+      Math.min(Number(element.dataset.radius) || 22, rect.width / 2, rect.height / 2);
+    if (record.radius !== radius) { element.style.setProperty("--radius", radius + "px"); record.radius = radius; }
+    if (!available || !record.context?.drawImage) return false;
+    const key = [domain, epoch, record.materialDrawKey, rect.left, rect.top, rect.width, rect.height, radius, ratio].join("|");
+    if (record.renderKey === key && element.classList.contains("glass-ready")) return false;
+    const w = Math.max(1, Math.round(rect.width * ratio)), h = Math.max(1, Math.round(rect.height * ratio));
+    ensureStage(w, h);
+    gl.viewport(0, 0, w, h);
+    gl.useProgram(program);
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, getTexture(base, material.blur, epoch, domain));
+    gl.uniform1i(uniform("content"), 0);
+    gl.uniform2f(uniform("screen"), width, height);
+    gl.uniform4f(uniform("rect"), rect.left, rect.top, rect.width, rect.height);
+    gl.uniform1f(uniform("radius"), radius);
+    gl.uniform4f(uniform("material"), material.height, material.amount, material.depth, material.dispersion);
+    gl.uniform4f(uniform("tint"), ...material.tint, material.alpha);
+    gl.uniform1f(uniform("gradientTint"), material.gradient);
+    gl.uniform1f(uniform("highlightAlpha"), material.highlight);
+    gl.drawArrays(gl.TRIANGLES, 0, 6);
+    counters.draws++;
+    if (record.canvas.width !== w) record.canvas.width = w;
+    if (record.canvas.height !== h) record.canvas.height = h;
+    record.context.clearRect(0, 0, w, h);
+    // WebGL's viewport starts at the bottom-left of the reusable draw buffer.
+    record.context.drawImage(stage, 0, stage.height - h, w, h, 0, 0, w, h);
+    record.renderKey = key;
+    record.serial++;
+    element.classList.add("glass-ready");
+    return true;
+  }
+  function clipMain(context, top) {
+    context.beginPath();
+    context.rect(0, top, width, Math.max(0, height - top));
+    context.clip();
+  }
+  function mainClipTop() {
+    const main = document.getElementById("main");
+    return main ? Math.max(0, Math.min(height, main.getBoundingClientRect().top)) : 0;
+  }
+  function recordText(clipTop) {
+    if (!textDirty || !textContext?.drawImage) return;
+    textContext.clearRect(0, 0, textSource.width, textSource.height);
+    if (document.createRange && window.getComputedStyle) {
+      const root = document.getElementById("app-scene");
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      let node, glyphs = 0;
+      textContext.save();
+      textContext.scale(ratio, ratio);
+      while ((node = walker.nextNode()) && glyphs < 2400) {
+        const parent = node.parentElement, text = node.textContent;
+        if (!parent || !text.trim() || parent.closest("[hidden],canvas,script,style")) continue;
+        const insideMain = !!parent.closest("#main");
+        const visibleTop = insideMain ? clipTop : 0;
+        if (![...parent.getClientRects()].some(rect => rect.width > 0 && rect.bottom > visibleTop && rect.top < height && rect.right > 0 && rect.left < width)) continue;
+        const style = getComputedStyle(parent);
+        if (style.visibility === "hidden" || style.display === "none") continue;
+        textContext.fillStyle = style.color;
+        textContext.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        textContext.textBaseline = "alphabetic";
+        textContext.save();
+        if (insideMain) clipMain(textContext, clipTop);
+        const range = document.createRange();
+        for (let index = 0; index < text.length && glyphs < 2400; index++) {
+          range.setStart(node, index); range.setEnd(node, index + 1);
+          const rect = range.getBoundingClientRect();
+          counters.glyphReads++;
+          if (rect.width < .1 || rect.bottom < 0 || rect.top > height) continue;
+          textContext.fillText(text[index], rect.left, rect.top + parseFloat(style.fontSize) * .86);
+          glyphs++;
+        }
+        range.detach?.();
+        textContext.restore();
+      }
+      textContext.restore();
+    }
+    counters.textRecords++;
+    textDirty = false;
+  }
+  // The portal samples only its lower domain; text is recorded separately from glass.
+  function recordScene(main) {
+    if (!sceneDirty || !sceneContext?.drawImage) return;
+    sceneContext.clearRect(0, 0, scene.width, scene.height);
+    sceneContext.drawImage(source, 0, 0);
+    const clipTop = mainClipTop();
+    for (const [element, record, rect] of main) {
+      if (!element.classList.contains("glass-ready")) continue;
+      sceneContext.save();
+      sceneContext.scale(ratio, ratio);
+      if (record.page) clipMain(sceneContext, clipTop);
+      sceneContext.drawImage(record.canvas, rect.left, rect.top, rect.width, rect.height);
+      sceneContext.restore();
+    }
+    recordText(clipTop);
+    sceneContext.drawImage(textSource, 0, 0);
+    sceneEpoch++;
+    counters.sceneRecords++;
+    sceneDirty = false;
+  }
+  function paint(time) {
+    frame = 0;
+    if (hidden) return;
+    counters.frames++;
+    dimensions(); rebuildSource();
+    try {
+      const main = [], lenses = [], portals = [];
+      for (const [element, record] of surfaces) {
+        const rect = measure(element, record);
+        if (!rect) continue;
+        const group = record.portal ? portals : record.role === "lens" ? lenses : main;
+        group.push([element, record, rect]);
+      }
+      let geometryChanged = false;
+      for (const [element, record, rect] of main) {
+        const geometry = [rect.left, rect.top, rect.width, rect.height].join(":");
+        if (record.geometry !== geometry) { geometryChanged = true; record.geometry = geometry; }
+        if (drawSurface(element, record, rect)) sceneDirty = true;
+      }
+      if (geometryChanged) textDirty = true;
+      for (const [element, record, rect] of lenses) {
+        const parent = surfaces.get(element.parentElement);
+        if (!available || !parent?.rect || !lensContext?.drawImage) { drawSurface(element, record, rect); continue; }
+        const epoch = sourceEpoch + ":" + parent.serial;
+        const base = () => {
+          lensContext.clearRect(0, 0, lensSource.width, lensSource.height);
+          lensContext.drawImage(source, 0, 0);
+          const r = parent.rect;
+          lensContext.drawImage(parent.canvas, r.left * ratio, r.top * ratio, r.width * ratio, r.height * ratio);
+          counters.lensRecords++;
+          return lensSource;
+        };
+        if (drawSurface(element, record, rect, base, epoch, "lens:" + parent.id)) sceneDirty = true;
+      }
+      if (portals.length && available) {
+        recordScene([...main, ...lenses]);
+        for (const [element, record, rect] of portals) drawSurface(element, record, rect, scene, sceneEpoch, "scene");
+      } else if (!available) {
+        for (const [element, record, rect] of portals) drawSurface(element, record, rect);
+      }
+    } catch (_) { fallback(); }
+    if (time < until && motionAllowed()) invalidate();
+  }
+  function setTheme(value, name) {
+    const next = value === "dark" ? "dark" : "light", color = ACCENTS[name] || ACCENTS.blue;
+    if (theme === next && color === accent) return;
+    const themeChanged = theme !== next;
+    theme = next; accent = color; materialRevision++;
+    if (themeChanged) sourceDirty = true;
+    sceneDirty = textDirty = true;
+    invalidate();
+  }
+  function setLevel(value) {
+    const next = Math.max(0, Math.min(100, Number(value) || 0));
+    if (settings.level === next) return;
+    settings.level = next;
+    settingsKey = JSON.stringify(settings);
+    materialRevision++; sceneDirty = true;
+    invalidate();
+  }
+  function setWallOptions(options) {if(Object.entries(options).every(([key,value])=>wall[key]===value))return;wall={...wall,...options};wall.blur=Math.max(0,Math.min(100,Number(wall.blur)||0));wall.brightness=Math.max(.35,Math.min(1,Number(wall.brightness)||1));wall.scale=Math.max(1,Math.min(4,Number(wall.scale)||1));sourceDirty=true;invalidate();}
+  function setWallpaper(value) {if(image===value)return;image=value;sourceDirty=true;if(!backgroundContext?.drawImage) {document.body.style.backgroundImage=value?`url("${value.src}")`:"none";document.body.style.backgroundSize="cover";document.body.style.backgroundAttachment="fixed";}invalidate();}
+  function configure(options) {
+    const next = { ...settings, ...options }, key = JSON.stringify(next);
+    if (settingsKey === key) return;
+    settings = next; settingsKey = key;
+    materialRevision++; sceneDirty = true;
+    invalidate();
+  }
+  function paletteFromWallpaper() {
+    if (!image || !sourceContext?.getImageData) return settings.palette.slice();
+    const tiny=document.createElement("canvas");tiny.width=32;tiny.height=32;const c=tiny.getContext("2d");c.drawImage(image,0,0,32,32);
+    const data=c.getImageData(0,0,32,32).data,buckets=new Map();
+    for(let i=0;i<data.length;i+=4){const r=data[i],g=data[i+1],b=data[i+2];if(Math.max(r,g,b)<45||Math.min(r,g,b)>235)continue;const key=[r>>5,g>>5,b>>5].join(",");const old=buckets.get(key)||{count:0,r:0,g:0,b:0};old.count++;old.r+=r;old.g+=g;old.b+=b;buckets.set(key,old);}
+    const colors=[...buckets.values()].sort((a,b)=>b.count-a.count).slice(0,6).map(x=>"#"+[x.r,x.g,x.b].map(v=>Math.round(v/x.count*.72+255*.28).toString(16).padStart(2,"0")).join(""));
+    return colors.length ? colors : settings.palette.slice();
+  }
+  const resizeObserver = typeof ResizeObserver === "function" ? new ResizeObserver(() => {
+    sceneDirty = textDirty = true;
+    invalidate();
+  }) : null;
+  const mutationObserver = typeof MutationObserver === "function" ? new MutationObserver(records => {
+    let structural = false, dirty = false, underlay = false;
+    for (const record of records) {
+      if (record.target instanceof Element && record.target.matches("canvas")) continue;
+      if (record.type === "childList") {
+        const nodes = [...record.addedNodes, ...record.removedNodes];
+        if (nodes.length && nodes.every(node => node instanceof Element && node.matches("canvas.glass-surface"))) continue;
+        if (nodes.some(node => node instanceof Element && (node.matches(".g") || node.querySelector(".g")))) structural = true;
+      }
+      dirty = true;
+      const target = record.target instanceof Element ? record.target : record.target.parentElement;
+      if (target?.closest("#app-scene,.dock-wrap")) underlay = true;
+    }
+    if (!dirty) return;
+    if (structural) scan();
+    if (underlay) sceneDirty = textDirty = true;
+    invalidate();
+  }) : null;
+  initialize(); if (!available) fallback(); scan();
+  resizeObserver?.observe(document.documentElement);
+  for (const id of ["app-scene", "dock-wrap", "appearance-layer", "dialog-layer"]) {
+    const target = document.getElementById(id);
+    if (!target) continue;
+    mutationObserver?.observe(target, {
+      childList: true, subtree: true, characterData: true, attributes: true,
+      attributeFilter: ["hidden", "aria-pressed", "aria-checked", "data-state", "data-role", "data-color-index"],
+    });
+  }
+  for (const name of ["resize", "orientationchange", "nova:viewport"]) window.addEventListener(name, () => {
+    sourceDirty = sceneDirty = textDirty = true;
+    invalidate(500);
+  }, { passive: true });
+  document.addEventListener("scroll", () => {
+    sceneDirty = textDirty = true;
+    invalidate();
+  }, { passive: true, capture: true });
+  window.addEventListener("scroll", () => {
+    sceneDirty = textDirty = true;
+    invalidate();
+  }, { passive: true });
+  window.addEventListener("nova:page", event => {
+    scan(); sceneDirty = textDirty = true;
+    invalidate(event.detail?.animate ? 560 : 0);
+  });
+  for (const name of ["nova:dialog", "nova:overlay"]) window.addEventListener(name, () => {
+    scan();
+    invalidate();
+  });
+  document.addEventListener("visibilitychange", () => {
+    hidden = document.visibilityState === "hidden";
+    if (hidden) { cancelAnimationFrame(frame); frame = 0; until = 0; }
+    else { sceneDirty = textDirty = true; invalidate(); }
+  });
+  stage.addEventListener("webglcontextlost", event => { event.preventDefault(); fallback(); });
+  stage.addEventListener("webglcontextrestored", () => {
+    available = !!gl;
+    locationCache.clear(); textures.clear();
+    initialize();
+    if (available) {
+      document.body.classList.remove("glass-flat");
+      materialRevision++;
+      for (const [element, record] of surfaces) {
+        if (!record.canvas.isConnected) element.prepend(record.canvas);
+        record.context = record.canvas.getContext("2d"); record.canvas.style.display = ""; record.renderKey = "";
+      }
+      sourceDirty = sceneDirty = textDirty = true;
+      invalidate();
+    }
+  });
+  window.NovaGlass = {
+    scan, refresh: () => { sceneDirty = textDirty = true; invalidate(); }, invalidate,
+    setTheme, setLevel, setWallOptions, setWallpaper, configure, paletteFromWallpaper, drawWallpaper,
+    getWallpaper: () => image, reference: "kyant/backdrop · SleepDown 1.2.7_beta5",
+    runtime: () => available ? "WebGL" : "CSS", materials: materialFor,
+    stats: () => ({ ...counters, surfaces: surfaces.size, textureBytes: textureBytes() }),
+  };
+})();
+</script>
+<script>
+(function () {
+  try {
+    var gl = null;
+    try { gl = document.createElement('canvas').getContext('webgl2'); } catch (e) {}
+    document.documentElement.dataset.renderer = gl ? 'webgl' : 'css';
+    if (!gl || !window.NovaGlass) { document.body.classList.add('glass-flat'); return; }
+    if (NovaGlass.scan) NovaGlass.scan();
+    if (NovaGlass.setTheme) NovaGlass.setTheme('dark');
+  } catch (e) {
+    document.body.classList.add('glass-flat');
+  }
+})();
 </script>
 </body>
 </html>
