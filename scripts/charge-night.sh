@@ -43,6 +43,8 @@ MAX_MA=$(conf CHARGE_MAX_MA); [ -z "$MAX_MA" ] && MAX_MA=6370
 HYST=$(conf CHARGE_TEMP_HYST); [ -z "$HYST" ] && HYST=2
 FULL=$(conf CHARGE_FULLSPEED); [ -z "$FULL" ] && FULL=0
 FULL_MAX_T=$(conf CHARGE_FULL_MAX_T); [ -z "$FULL_MAX_T" ] && FULL_MAX_T=45
+FULL_MAX_CPU=$(conf CHARGE_FULL_MAX_CPU); [ -z "$FULL_MAX_CPU" ] && FULL_MAX_CPU=70
+THERM=${SF_THERMAL:-/sys/class/thermal/thermal_zone0/temp}
 
 applied() { [ -f "$ST" ] && grep -q '^applied=1' "$ST" 2>/dev/null; }
 paused() { [ -f "$ST" ] && grep -q '^paused=1' "$ST" 2>/dev/null; }
@@ -129,6 +131,12 @@ case "$1" in
   full-on)
     TN=$(cat $B/temp 2>/dev/null); [ -z "$TN" ] && TN=0
     TN=$((TN / 10))
+    CN=$(cat "$THERM" 2>/dev/null); [ -z "$CN" ] && CN=0
+    CN=$((CN / 1000))
+    if [ "$CN" -ge "$FULL_MAX_CPU" ]; then
+        echo "核心 ${CN}°C ≥ 上限 ${FULL_MAX_CPU}°C，已拒绝开启（先降温再试）"
+        exit 1
+    fi
     if [ "$TN" -ge "$FULL_MAX_T" ]; then
         echo "温度 ${TN}°C ≥ 上限 ${FULL_MAX_T}°C，已拒绝开启（先降温再试）"
         exit 1
@@ -173,6 +181,15 @@ case "$1" in
     if [ "$FULL" = "1" ]; then
         TN=$(cat $B/temp 2>/dev/null); [ -z "$TN" ] && TN=0
         TN=$((TN / 10))
+        CN=$(cat "$THERM" 2>/dev/null); [ -z "$CN" ] && CN=0
+        CN=$((CN / 1000))
+        if [ "$CN" -ge "$FULL_MAX_CPU" ]; then
+            setk CHARGE_FULLSPEED 0
+            setflag full_trip 1
+            clearflag full
+            log "全速充电：核心 ${CN}°C ≥ ${FULL_MAX_CPU}°C，已自动关闭并恢复限流"
+            FULL=0
+        fi
         if [ "$TN" -ge "$FULL_MAX_T" ]; then
             setk CHARGE_FULLSPEED 0
             setflag full_trip 1
@@ -278,6 +295,9 @@ case "$1" in
     echo "orig_ccc=$(orig_ccc)"
     echo "full_enabled=$FULL"
     echo "full_max_t=$FULL_MAX_T"
+    echo "full_max_cpu=$FULL_MAX_CPU"
+    CT=$(cat "$THERM" 2>/dev/null); [ -z "$CT" ] && CT=0
+    echo "core_temp=$((CT / 1000))"
     echo "full_trip=$(grep -q '^full_trip=1' "$ST" 2>/dev/null && echo 1 || echo 0)"
     ;;
   *)
