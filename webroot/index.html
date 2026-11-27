@@ -76,9 +76,24 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 /* 玻璃效果暂不可用：容器保持透明、canvas 隐藏 */
 #glass-canvas{display:none}
 #app-scene,#main{position:static;padding-top:0}
+/* 轻玻璃：只给页签胶囊 + 顶栏（面积小，重绘成本可控）。默认关。 */
+@supports (backdrop-filter: url(#lg-refract)){
+  body.glass-tabs .tab{
+    backdrop-filter:blur(6px) saturate(1.6) url(#lg-refract);
+    -webkit-backdrop-filter:blur(6px) saturate(1.6) url(#lg-refract);
+  }
+  body.glass-tabs .hdr{
+    backdrop-filter:blur(8px) saturate(1.5) url(#lg-refract);
+    -webkit-backdrop-filter:blur(8px) saturate(1.5) url(#lg-refract);
+  }
+}
+body.glass-tabs .tab{background:rgba(255,255,255,.10)}
+body.glass-tabs .tab.on{background:var(--lime);color:#0a0e14}
+body.glass-tabs .hdr{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(10,14,20,0))}
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="lg-refract" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="2" seed="7" result="noise"/><feGaussianBlur in="noise" stdDeviation="1.2" result="soft"/><feDisplacementMap in="SourceGraphic" in2="soft" scale="24" xChannelSelector="R" yChannelSelector="G"/></filter></svg>
 <div id="app-scene">
 <main id="main">
 <div id="rebootBanner" style="display:none;margin:12px 16px 0;padding:12px 14px;border-radius:14px;background:rgba(255,69,58,.16);border:1px solid rgba(255,69,58,.45);color:#ff6b61;font-size:12.5px;line-height:1.6">⚠️ /dev/null 被重建过，WebView 要重启手机才能恢复（重启后本提示自动消失）</div>
@@ -100,6 +115,14 @@ body{background:var(--bg);color:var(--txt);font:14px/1.5 -apple-system,"PingFang
 
 <!-- ========== 调优 ========== -->
 <div class="pane on" id="p-tune">
+  <div class="card g">
+    <h3>外观 <em id="glassTag"></em></h3>
+    <div class="seg">
+      <button id="gbOff" onclick="sfGlass(0)">关</button>
+      <button id="gbOn" onclick="sfGlass(1)">玻璃</button>
+    </div>
+    <div class="hint">玻璃只作用在页签和顶栏，面积小、开销可控。默认关闭；浏览器不支持位移滤镜时自动退化成普通模糊。</div>
+  </div>
   <div class="card g">
     <h3>CPU / 电池实时 <em id="hpTag"></em></h3>
     <div class="grid">
@@ -1953,6 +1976,41 @@ setInterval(pfLoad, 15000);
   }
   chk();
   setInterval(chk, 60000);
+})();
+function sfGlass(on, silent) {
+  var b = document.body;
+  if (on) b.classList.add('glass-tabs'); else b.classList.remove('glass-tabs');
+  try { localStorage.setItem('sfg3', on ? '1' : '0'); } catch (e) {}
+  var tg = document.getElementById('glassTag');
+  if (tg) tg.innerHTML = on ? '<span class="tag ok">玻璃</span>' : '<span class="tag">关闭</span>';
+  var a = document.getElementById('gbOff'), c = document.getElementById('gbOn');
+  if (a) a.className = on ? '' : 'on';
+  if (c) c.className = on ? 'on' : '';
+  if (!silent) toast(on ? '已开启玻璃（仅页签/顶栏）' : '已关闭玻璃');
+}
+(function () {
+  var on = false;
+  try { on = localStorage.getItem('sfg3') === '1'; } catch (e) {}
+  if (location.search.indexOf('glass=1') >= 0) on = true;
+  sfGlass(on, true);
+  if (location.search.indexOf('dbg=1') >= 0) {
+    setTimeout(function () {
+      try {
+        var t = document.querySelector('.tab'), h = document.querySelector('.hdr');
+        var ct = t ? getComputedStyle(t) : null, ch = h ? getComputedStyle(h) : null;
+        var body = [
+          'main',
+          'tab_bf=' + ((ct && (ct.backdropFilter || ct.webkitBackdropFilter)) || 'none'),
+          'hdr_bf=' + ((ch && (ch.backdropFilter || ch.webkitBackdropFilter)) || 'none'),
+          'bodyH=' + document.body.scrollHeight,
+          'tabs=' + document.querySelectorAll('.tab').length,
+          'panes=' + document.querySelectorAll('.pane').length,
+          'canvas=' + document.querySelectorAll('canvas').length
+        ].join('|');
+        fetch('/api/report', { method: 'POST', body: body });
+      } catch (e) {}
+    }, 1000);
+  }
 })();
 </script>
 </div>

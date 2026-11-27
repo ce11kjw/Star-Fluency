@@ -9,9 +9,16 @@ LOG=$SF_DIR/fluency.log
 read -r line 2>/dev/null
 method=$(echo "$line" | awk '{print $1}')
 path=$(echo "$line" | awk '{print $2}')
+QP=$path
+case "$QP" in
+    /api/*) ;;
+    *) path=${path%%\?*} ;;
+esac
 
+CL=0
 while read -r h; do
     h=$(echo "$h" | tr -d '\r')
+    case "$h" in Content-Length:*) CL=$(echo "$h" | awk '{print $2}') ;; esac
     [ -z "$h" ] && break
 done
 
@@ -83,6 +90,13 @@ case "$path" in
         fi
         send "application/json" '{"ok":true}'
         ;;
+    /api/report)
+        [ -z "$CL" ] && CL=0
+        if [ "$CL" -gt 0 ] 2>/dev/null; then
+            head -c "$CL" > /data/adb/star-fluency/glasstest.txt 2>/dev/null
+        fi
+        send "application/json" '{"ok":true}'
+        ;;
     /api/log)
         body=$(tail -n 80 "$LOG" 2>/dev/null | awk 'BEGIN{ORS=""} {gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s\\n", $0}' | sed 's/\\n$//')
         send "application/json" "{\"log\":\"$body\"}"
@@ -103,6 +117,15 @@ case "$path" in
         f="$MODDIR/webroot/index.html"
         if [ -f "$f" ]; then
             printf 'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n' "$(stat -c%s "$f")"
+            cat "$f"
+        else
+            printf 'HTTP/1.1 404 Not Found\r\nContent-Length: 2\r\nConnection: close\r\n\r\nno'
+        fi
+        ;;
+    /test-liquid.html)
+        f="$MODDIR/webroot/test-liquid.html"
+        if [ -f "$f" ]; then
+            printf 'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n' "$(wc -c < "$f")"
             cat "$f"
         else
             printf 'HTTP/1.1 404 Not Found\r\nContent-Length: 2\r\nConnection: close\r\n\r\nno'

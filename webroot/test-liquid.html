@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>液态玻璃测试</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  min-height:100vh;color:#e8edf4;
+  font:14px/1.6 -apple-system,"PingFang SC",sans-serif;
+  background:#0a0e14;
+  padding:16px 16px 40px;
+  background-image:
+    radial-gradient(240px 240px at 18% 12%, #ff2d78 0%, transparent 62%),
+    radial-gradient(220px 220px at 82% 24%, #00e0c6 0%, transparent 60%),
+    radial-gradient(260px 260px at 50% 78%, #7b5bff 0%, transparent 62%),
+    repeating-linear-gradient(115deg, transparent 0 26px, rgba(255,255,255,.07) 26px 28px);
+  background-attachment:fixed;
+}
+h1{font-size:16px;margin-bottom:6px}
+.hint{font-size:12px;color:#7d8899;margin-bottom:14px}
+#status{
+  font:11px/1.5 ui-monospace,monospace;color:#c6f24e;
+  background:rgba(0,0,0,.45);border:1px solid rgba(255,255,255,.14);
+  border-radius:10px;padding:8px 10px;margin-bottom:16px;white-space:pre-wrap;
+}
+/* ---- 玻璃：SVG 位移 + backdrop-filter ---- */
+.glass{
+  position:relative;border-radius:22px;isolation:isolate;
+  background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 14px 34px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.45);
+  overflow:hidden;
+}
+@supports (backdrop-filter: url(#lg-refract)){
+  .glass.on{
+    backdrop-filter:blur(6px) saturate(1.7) url(#lg-refract);
+    -webkit-backdrop-filter:blur(6px) saturate(1.7) url(#lg-refract);
+  }
+}
+.glass.on{ background:rgba(255,255,255,.05) }
+/* 页签胶囊（模拟顶栏） */
+.pill{
+  display:flex;gap:8px;padding:10px;margin-bottom:18px;
+  border-radius:999px;
+}
+.pill b{
+  flex:1;text-align:center;padding:10px 0;border-radius:999px;
+  background:rgba(255,255,255,.10);font-weight:600;font-size:13px
+}
+.pill b.on{background:#0a84ff;color:#fff}
+/* 卡片 */
+.card{padding:18px;margin-bottom:16px}
+.card h2{font-size:15px;margin-bottom:8px}
+.card p{font-size:12.5px;color:#cfd8e6}
+.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.10);font-size:13px}
+.row:last-child{border-bottom:0}
+.btns{display:flex;gap:10px;margin-bottom:16px}
+button{
+  flex:1;padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,.2);
+  background:rgba(255,255,255,.10);color:#e8edf4;font-size:13px;font-family:inherit
+}
+button.pri{background:#c6f24e;color:#0a0e14;border-color:#c6f24e;font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- 位移贴图：feTurbulence 生成噪声 → feDisplacementMap 弯折背后的像素 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <filter id="lg-refract" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB">
+    <feTurbulence type="fractalNoise" baseFrequency="0.009 0.012" numOctaves="2" seed="7" result="noise"/>
+    <feGaussianBlur in="noise" stdDeviation="1.2" result="soft"/>
+    <feDisplacementMap in="SourceGraphic" in2="soft" scale="28"
+                       xChannelSelector="R" yChannelSelector="G"/>
+  </filter>
+</svg>
+
+<h1>液态玻璃测试</h1>
+<div class="hint">看两层元素边缘是否把背后的彩色条纹“折弯”。下方按钮可开关玻璃对比。</div>
+<div id="status">检测中…</div>
+
+<div class="btns">
+  <button class="pri" onclick="setGlass(1)">开玻璃</button>
+  <button onclick="setGlass(0)">关玻璃</button>
+</div>
+
+<div class="glass pill on" id="pill">
+  <b class="on">调优</b><b>网络</b><b>动图</b><b>精简</b>
+</div>
+
+<div class="glass card on" id="card">
+  <h2>玻璃卡片</h2>
+  <p>如果上方和左边的条纹边缘在这块区域里发生了弯折 / 波纹，说明位移滤镜生效了。</p>
+  <div class="row"><span>电池温度</span><span id="t1">36 °C</span></div>
+  <div class="row"><span>核心温度</span><span id="t2">58 °C</span></div>
+  <div class="row"><span>充电电流</span><span>6370 mA</span></div>
+</div>
+
+<div class="glass card" id="card2">
+  <h2>对照：普通模糊</h2>
+  <p>这张卡只用 backdrop-filter 的模糊（不带位移），边缘不会有弯折感——两者放一起好对比。</p>
+</div>
+
+<script>
+function setGlass(on) {
+  ['pill', 'card'].forEach(function (id) {
+    var e = document.getElementById(id);
+    if (e) e.classList[on ? 'add' : 'remove']('on');
+  });
+  try { report('toggle=' + on); } catch (e) {}
+}
+(function () {
+  var sup = '';
+  try { sup = CSS.supports('backdrop-filter', 'url(#lg-refract)') ? 'YES' : 'NO'; } catch (e) { sup = 'ERR'; }
+  var pill = document.getElementById('pill');
+  var cs = pill ? getComputedStyle(pill) : null;
+  var bf = cs ? (cs.backdropFilter || cs.webkitBackdropFilter || '') : '';
+  var out = [
+    'supports url() = ' + sup,
+    'pill = ' + (pill ? pill.offsetWidth + 'x' + pill.offsetHeight : '?'),
+    'backdropFilter = ' + (bf || '(none)'),
+    'body = ' + document.body.scrollHeight + 'px',
+    'cards = ' + document.querySelectorAll('.glass').length,
+    'canvases = ' + document.querySelectorAll('canvas').length
+  ].join('\n');
+  document.getElementById('status').textContent = out;
+})();
+function report(tag) {
+  var pill = document.getElementById("pill");
+  var cs = pill ? getComputedStyle(pill) : null;
+  var sup = "ERR";
+  try { sup = CSS.supports("backdrop-filter", "url(#lg-refract)") ? "YES" : "NO"; } catch (e) {}
+  var lines = [tag,
+    "supports=" + sup,
+    "pill=" + (pill ? pill.offsetWidth + "x" + pill.offsetHeight : "?"),
+    "bf=" + ((cs && (cs.backdropFilter || cs.webkitBackdropFilter)) || "none"),
+    "body=" + document.body.scrollHeight,
+    "glass=" + document.querySelectorAll(".glass").length,
+    "canvas=" + document.querySelectorAll("canvas").length
+  ].join("|");
+  try { fetch("/api/report", { method: "POST", body: lines }); } catch (e) {}
+}
+window.addEventListener("load", function () { setTimeout(function () { report("load"); }, 400); });
+</script>
+</body>
+</html>
